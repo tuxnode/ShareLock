@@ -125,7 +125,12 @@ type User struct {
 // NOTE: The following methods have toy (insecure!) implementations.
 
 func InitUser(username string, password string) (userdataptr *User, err error) {
-	userUUID := uuid.New()
+	hash := userlib.Hash([]byte(username + "userStruct"))
+	userUUID, err := uuid.FromBytes(hash[:16])
+	if err != nil {
+		return nil, err
+	}
+
 	if _, ok := userlib.DatastoreGet(userUUID); ok {
 		return nil, errors.New("user already exists")
 	}
@@ -217,9 +222,34 @@ func decaryptAndVerify(payload []byte, encKey []byte, macKey []byte) (plaintext 
 }
 
 func GetUser(username string, password string) (userdataptr *User, err error) {
+	salt := userlib.Hash([]byte(username))
+	masterKey := userlib.Argon2Key([]byte(password), salt, userlib.AESKeySizeBytes)
+
+	encKey, _ := userlib.HashKDF(masterKey, []byte("enc"))
+	macKey, _ := userlib.HashKDF(masterKey, []byte("mac"))
+
+	hash := userlib.Hash([]byte(username + "userStruct"))
+	userUUID, err := uuid.FromBytes(hash[:16])
+	if err != nil {
+		return nil, err
+	}
+
+	payload, ok := userlib.DatastoreGet(userUUID)
+	if !ok {
+		return nil, errors.New("Can't get User info")
+	}
+
+	plaintext, err := decaryptAndVerify(payload, encKey, macKey)
+	if err != nil {
+		return nil, err
+	}
+
 	var userdata User
-	userdataptr = &userdata
-	return userdataptr, nil
+	if err := json.Unmarshal(plaintext, &userdata); err != nil {
+		return nil, err
+	}
+
+	return &userdata, nil
 }
 
 func (userdata *User) StoreFile(filename string, content []byte) (err error) {
