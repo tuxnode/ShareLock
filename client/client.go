@@ -109,7 +109,10 @@ func someUsefulThings() {
 // A Go struct is like a Python or Java class - it can have attributes
 // (e.g. like the Username attribute) and methods (e.g. like the StoreFile method below).
 type User struct {
-	Username string
+	Username      string
+	PKEPrivateKey userlib.PrivateKeyType
+	DSSignKey     userlib.DSSignKey
+	Files         map[string]userlib.UUID
 
 	// You can add other attributes here if you want! But note that in order for attributes to
 	// be included when this struct is serialized to/from JSON, they must be capitalized.
@@ -122,9 +125,95 @@ type User struct {
 // NOTE: The following methods have toy (insecure!) implementations.
 
 func InitUser(username string, password string) (userdataptr *User, err error) {
-	var userdata User
-	userdata.Username = username
-	return &userdata, nil
+	userUUID := uuid.New()
+	if _, ok := userlib.DatastoreGet(userUUID); ok {
+		return nil, errors.New("user already exists")
+	}
+	salt := userlib.Hash([]byte(username)) // 根据username计算唯一的salt
+	masterKey := userlib.Argon2Key([]byte(password), salt, userlib.AESKeySizeBytes)
+
+	// 密钥派生
+	encKey, _ := userlib.HashKDF(masterKey, []byte("enc"))
+	macKey, _ := userlib.HashKDF(masterKey, []byte("mac"))
+
+	pkeEncKey, pkeDecKey, err := userlib.PKEKeyGen()
+	if err != nil {
+		return nil, err
+	}
+
+	dsSignKey, dsVerifyKey, err := userlib.DSKeyGen()
+	if err != nil {
+		return nil, err
+	}
+
+	userlib.KeystoreSet(username+"_enc_pub", pkeEncKey)
+	userlib.KeystoreSet(username+"_sig_pub", dsVerifyKey)
+
+	userdata := &User{
+		Username:      username,
+		PKEPrivateKey: pkeDecKey,
+		DSSignKey:     dsSignKey,
+		Files:         map[string]userlib.UUID{},
+	}
+
+	userBytes, _ := json.Marshal(userdata)
+	payload, err := encryptAndMAC(userBytes, encKey, macKey)
+	if err != nil {
+		return nil, err
+	}
+
+	userlib.DatastoreSet(userUUID, payload)
+
+	return userdata, nil
+}
+
+/* 加密数据并打包MAC封条的过程 */
+func encryptAndMAC(data []byte, encKey []byte, macKey []byte) (payload []byte, err error) {
+	if len(encKey) != 16 {
+		return nil, errors.New("encryption key must be exactly 16 bytes")
+	}
+
+	// 生成随机向量
+	iv := userlib.RandomBytes(16)
+	// 对称加密
+	ciphertext := userlib.SymEnc(encKey, iv, data)
+	mac, err := userlib.HMACEval(macKey, ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	// 构造密文+封条: iv ciphertest mac
+	payload = append(ciphertext, mac...)
+	return payload, nil
+}
+
+/* 对应验证MAC和解密 */
+func decaryptAndVerify(payload []byte, encKey []byte, macKey []byte) (plaintext []byte, err error) {
+	const ivLen = 16
+	const macLen = 64 // SHA512
+
+	if len(payload) < ivLen+macLen {
+		return nil, errors.New("malformed payload: data stream too short")
+	}
+
+	// splite package
+	macOffset := len(payload) - macLen
+	receiveMac := payload[macLen:]
+	ciphertext := payload[ivLen:macOffset]
+
+	macInput := payload[macOffset:]
+	expectMac, err := userlib.HMACEval(macKey, macInput)
+	if err != nil {
+		return nil, err
+	}
+
+	if !userlib.HMACEqual(receiveMac, expectMac) {
+		return nil, errors.New("cryptographic doom: MAC verification failed, data tampered")
+	}
+
+	plaintext = userlib.SymDec(encKey, ciphertext)
+
+	return plaintext, nil
 }
 
 func GetUser(username string, password string) (userdataptr *User, err error) {
