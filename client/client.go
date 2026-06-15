@@ -112,6 +112,7 @@ type User struct {
 	Username      string
 	PKEPrivateKey userlib.PrivateKeyType
 	DSSignKey     userlib.DSSignKey
+	MasterKey     []byte
 	Files         map[string]userlib.UUID
 
 	// You can add other attributes here if you want! But note that in order for attributes to
@@ -158,6 +159,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		Username:      username,
 		PKEPrivateKey: pkeDecKey,
 		DSSignKey:     dsSignKey,
+		MasterKey:     masterKey,
 		Files:         map[string]userlib.UUID{},
 	}
 
@@ -262,7 +264,7 @@ func (userdata *User) StoreFile(filename string, content []byte) (err error) {
 	}
 
 	salt := userlib.Hash([]byte(filename))
-	fileSecKey := userlib.Argon2Key([]byte(filename), salt, 16)
+	fileSecKey := userlib.Argon2Key(userdata.MasterKey, salt, 32)
 	encKey := userlib.Hash(append(fileSecKey, []byte("enc")...))[:16]
 	macKey := userlib.Hash(append(fileSecKey, []byte("mac")...))[:16]
 
