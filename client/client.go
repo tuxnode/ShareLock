@@ -332,48 +332,56 @@ func (userdata *User) getFileKeys(key []byte) (any, any) {
 }
 
 func (userdata *User) LoadFile(filename string) (content []byte, err error) {
-	salt := userlib.Hash([]byte(filename))
-	encKey, macKey := userdata.getUserKey(salt)
-
-	inodeUUID := userlib.UUID(userlib.Hash([]byte(filename + userdata.Username))[:16])
-	value, ok := userlib.DatastoreGet(inodeUUID)
+	accessUUID, _ := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	accessPayload, ok := userlib.DatastoreGet(accessUUID)
 	if !ok {
-		return nil, errors.New("Can't get file by this inodeUUID")
+		return nil, errors.New("file not found: access struct missing")
 	}
 
-	var ed EncryptedData
-	if err := json.Unmarshal(value, &ed); err != nil {
-		return nil, err
-	}
-
-	// 解密验证inode
-	plaintext, err := decaryptAndVerify(append(ed.Ciphertext, ed.Hmac...), encKey, macKey)
+	pEncKey, pMacKey := userdata.getPersonalKey(filename)
+	accessBytes, err := decaryptAndVerify(accessPayload, pEncKey, pMacKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// 读取Inode id list
-	var inode Inode
-	if err := json.Unmarshal(plaintext, &inode); err != nil {
+	var access Access
+	if err := json.Unmarshal(accessBytes, &access); err != nil {
 		return nil, err
 	}
 
+	// decrypt inode
+	inodePayload, ok := userlib.DatastoreGet(access.InodeUUID)
+	if !ok {
+		return nil, errors.New("file structure corrupted: inode missing")
+	}
+	fEncKey, fMacKey := getFileKeys(access.FileKey)
+	inodeBytes, err := decaryptAndVerify(inodePayload, fEncKey, fMacKey)
+	if err != nil {
+		return nil, err
+	}
+
+	var inode Inode
+	if err := json.Unmarshal(inodeBytes, &inode); err != nil {
+		return nil, err
+	}
+
+	// decrypt Data
 	var data []byte
 	for _, blockUUID := range inode.BlockUUIDs {
-		value, ok := userlib.DatastoreGet(blockUUID)
+		blockPayload, ok := userlib.DatastoreGet(blockUUID)
 		if !ok {
-			return nil, errors.New("Can't get File by UUID")
+			return nil, errors.New("Can't get data by this UUID")
 		}
 
-		var blockData EncryptedData
-		if err := json.Unmarshal(value, &blockData); err != nil {
-			return nil, err
-		}
-		blockPlaintext, err := decaryptAndVerify(append(blockData.Ciphertext, blockData.Hmac...), encKey, macKey)
+		blockPlaintext, err := decaryptAndVerify(blockPayload, fEncKey, fMacKey)
 		if err != nil {
 			return nil, err
 		}
 		data = append(data, blockPlaintext...)
 	}
-	return data[:inode.Size], nil
+	if len(data) > inode.Size {
+		data = data[:inode.Size]
+	}
+
+	return data, nil
 }
