@@ -11,7 +11,7 @@ const BlockSize = 512
 /* Divide A File Into FileBlocks */
 type FileBlock struct {
 	BlockUUID userlib.UUID
-	block     [BlockSize]byte
+	block     []byte
 }
 
 /*
@@ -31,11 +31,10 @@ func ByteToBlock(data []byte) (block *list.List) {
 			end = size
 		}
 
-		blockUUID := userlib.UUID(userlib.RandomBytes(userlib.UUIDSizeBytes))
 		fileBlock := &FileBlock{
-			BlockUUID: blockUUID,
+			block: make([]byte, end-start),
 		}
-		copy(fileBlock.block[:], data[start:end])
+		copy(fileBlock.block, data[start:end])
 		list.PushBack(fileBlock)
 	}
 	return list
@@ -53,7 +52,7 @@ func BlockYToByte(block *list.List, totalSize int) (data []byte) {
 	ret := make([]byte, 0, totalSize)
 	for e := block.Front(); e != nil; e = e.Next() {
 		b := e.Value.(*FileBlock)
-		ret = append(ret, b.block[:]...)
+		ret = append(ret, b.block...)
 	}
 	if len(ret) > totalSize {
 		ret = ret[:totalSize]

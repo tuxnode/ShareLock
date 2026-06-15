@@ -17,7 +17,7 @@ func (userdata *User) saveUser() error {
 	}
 	macKey, err := userlib.HashKDF(userdata.MasterKey, []byte("mac"))
 
-	paylaod, _ := encryptAndMAC(userBytes, encKey[:16], macKey[:16])
+	paylaod, _ := encryptAndMAC(userBytes, encKey, macKey)
 	hash := userlib.Hash([]byte(userdata.Username + "userStruct"))
 
 	// generate useruuid by username hash

@@ -248,7 +248,7 @@ func (userdata *User) StoreFile(filename string, content []byte) (err error) {
 		fb := e.Value.(*FileBlock)
 		blockUUID := uuid.New() // 数据块 UUID 也是完全随机的
 
-		blockPayload, _ := encryptAndMAC(fb.block[:], fEncKey, fMacKey)
+		blockPayload, _ := encryptAndMAC(fb.block, fEncKey, fMacKey)
 		userlib.DatastoreSet(blockUUID, blockPayload)
 		inode.BlockUUIDs = append(inode.BlockUUIDs, blockUUID)
 	}
@@ -270,7 +270,7 @@ func (userdata *User) AppendToFile(filename string, content []byte) error {
 		return errors.New("Invalid argument")
 	}
 
-	accessUUID, _ := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename)))
+	accessUUID, _ := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
 	accessPayload, ok := userlib.DatastoreGet(accessUUID)
 	if !ok {
 		return errors.New("file not found: cannot append")
@@ -311,7 +311,7 @@ func (userdata *User) AppendToFile(filename string, content []byte) error {
 		fb := e.Value.(*FileBlock)
 		blockUUID := uuid.New()
 
-		blockPayload, err := encryptAndMAC(fb.block[:], fEncKey, fMacKey)
+		blockPayload, err := encryptAndMAC(fb.block, fEncKey, fMacKey)
 		if err != nil {
 			return err
 		}
@@ -379,27 +379,18 @@ func (userdata *User) LoadFile(filename string) (content []byte, err error) {
 		}
 		data = append(data, blockPlaintext...)
 	}
-	if len(data) > inode.Size {
-		data = data[:inode.Size]
-	}
 
 	return data, nil
 }
 
 func (userdata *User) CreateInvitation(filename string, recipientUsername string) (
 	invitationPtr uuid.UUID, err error) {
-	// check File Ownership
-	if userdata.Files == nil {
-		return uuid.Nil, errors.New("user don't have file")
+
+	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	if err != nil {
+		return uuid.Nil, err
 	}
 
-	// Qualify File Information from remote server
-	accessUUID, ok := userdata.Files[filename]
-	if !ok {
-		return uuid.Nil, errors.New("file not found: cannot create invitation")
-	}
-
-	// decrypt accrss struct
 	accessPayload, ok := userlib.DatastoreGet(accessUUID)
 	if !ok {
 		return uuid.Nil, errors.New("file not found: cannot create invitation")
