@@ -452,6 +452,62 @@ func (userdata *User) CreateInvitation(filename string, recipientUsername string
 }
 
 func (userdata *User) AcceptInvitation(senderUsername string, invitationPtr uuid.UUID, filename string) error {
+	// Get invitation from remote server
+	invitationPayload, ok := userlib.DatastoreGet(invitationPtr)
+	if !ok {
+		return errors.New("Can't get invitation by this ptr")
+	}
+
+	if len(invitationPayload) < 256 {
+		return errors.New("invitation payload too short to contain a signature")
+	}
+	sigOffset := len(invitationPayload) - 256
+	ciphertext := invitationPayload[:sigOffset]
+	signature := invitationPayload[sigOffset:]
+
+	// get sender public key from KeyStore server
+	senderVerifyKey, ok := userlib.KeystoreGet(senderUsername + "_sig_pub")
+	if !ok {
+		return errors.New("sender public key not found in Keystore")
+	}
+	// DS check
+	if err := userlib.DSVerify(senderVerifyKey, ciphertext, signature); err != nil {
+		return errors.New("cryptographic doom: signature verification failed")
+	}
+
+	plaintext, err := userlib.PKEDec(userdata.PKEPrivateKey, ciphertext)
+	if err != nil {
+		return err
+	}
+
+	var getInvitation Invitation
+	if err := json.Unmarshal(plaintext, &getInvitation); err != nil {
+		return err
+	}
+
+	// Store this Transfrom Access data and push to remote server
+	receiveAccess := Access{
+		FileKey:   getInvitation.FileKey,
+		InodeUUID: getInvitation.InodeUUID,
+	}
+	currAccessPayload, err := json.Marshal(receiveAccess)
+	if err != nil {
+		return err
+	}
+	pEncKey, pMacKey := userdata.getPersonalKey(filename)
+	currAccessBytes, err := encryptAndMAC(currAccessPayload, pEncKey, pMacKey)
+	if err != nil {
+		return err
+	}
+	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	if err != nil {
+		return err
+	}
+	userlib.DatastoreSet(accessUUID, currAccessBytes)
+
+	// update local User status
+	userdata.Files[filename] = accessUUID
+	userdata.saveUser()
 	return nil
 }
 
