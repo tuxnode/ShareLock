@@ -15,7 +15,7 @@ type FileBlock struct {
 }
 
 /*
-	 ByteToBlock: convert a File into Blocks
+	 ByteToBlock: convert a File into Blocks with cryoto
 		data: byte stream
 */
 func ByteToBlock(data []byte) (block *list.List) {
