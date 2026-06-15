@@ -22,9 +22,6 @@ import (
 
 	// hex.EncodeToString(...) is useful for converting []byte to string
 
-	// Useful for string manipulation
-	"strings"
-
 	// Useful for formatting strings (e.g. `fmt.Sprintf`).
 	"fmt"
 
@@ -321,6 +318,8 @@ func (userdata *User) AppendToFile(filename string, content []byte) error {
 		return errors.New("Can't get File by UUID")
 	}
 
+	userdata.Files[filename] = inodeUUID
+
 	var data EncryptedData
 	err := json.Unmarshal(value, &data)
 	if err != nil {
@@ -364,16 +363,50 @@ func (userdata *User) AppendToFile(filename string, content []byte) error {
 }
 
 func (userdata *User) LoadFile(filename string) (content []byte, err error) {
-	storageKey, err := uuid.FromBytes(userlib.Hash([]byte(filename + userdata.Username))[:16])
+	salt := userlib.Hash([]byte(filename))
+	encKey, macKey := userdata.getUserKey(salt)
+
+	inodeUUID := userlib.UUID(userlib.Hash([]byte(filename + userdata.Username))[:16])
+	value, ok := userlib.DatastoreGet(inodeUUID)
+	if !ok {
+		return nil, errors.New("Can't get file by this inodeUUID")
+	}
+
+	var ed EncryptedData
+	if err := json.Unmarshal(value, &ed); err != nil {
+		return nil, err
+	}
+
+	// 解密验证inode
+	plaintext, err := decaryptAndVerify(append(ed.Ciphertext, ed.Hmac...), encKey, macKey)
 	if err != nil {
 		return nil, err
 	}
-	dataJSON, ok := userlib.DatastoreGet(storageKey)
-	if !ok {
-		return nil, errors.New(strings.ToTitle("file not found"))
+
+	// 读取Inode id list
+	var inode Inode
+	if err := json.Unmarshal(plaintext, &inode); err != nil {
+		return nil, err
 	}
-	err = json.Unmarshal(dataJSON, &content)
-	return content, err
+
+	var data []byte
+	for _, blockUUID := range inode.BlockUUIDs {
+		value, ok := userlib.DatastoreGet(blockUUID)
+		if !ok {
+			return nil, errors.New("Can't get File by UUID")
+		}
+
+		var blockData EncryptedData
+		if err := json.Unmarshal(value, &blockData); err != nil {
+			return nil, err
+		}
+		blockPlaintext, err := decaryptAndVerify(append(blockData.Ciphertext, blockData.Hmac...), encKey, macKey)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, blockPlaintext...)
+	}
+	return data[:inode.Size], nil
 }
 
 func (userdata *User) CreateInvitation(filename string, recipientUsername string) (
