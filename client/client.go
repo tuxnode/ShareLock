@@ -173,49 +173,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	return userdata, nil
 }
 
-/* 加密数据并打包MAC封条的过程 */
-func encryptAndMAC(data []byte, encKey []byte, macKey []byte) (payload []byte, err error) {
-	aesKey := userlib.Hash(encKey)[:16]
-	hmacKey := userlib.Hash(macKey)[:16]
-	iv := userlib.RandomBytes(16)
-	ciphertext := userlib.SymEnc(aesKey, iv, data)
-	mac, err := userlib.HMACEval(hmacKey, ciphertext)
-	if err != nil {
-		return nil, err
-	}
-
-	payload = append(ciphertext, mac...)
-	return payload, nil
-}
-
-func decaryptAndVerify(payload []byte, encKey []byte, macKey []byte) (plaintext []byte, err error) {
-	const macLen = 64
-
-	if len(payload) < macLen {
-		return nil, errors.New("malformed payload: data stream too short")
-	}
-
-	macOffset := len(payload) - macLen
-	ciphertext := payload[:macOffset]
-	receiveMac := payload[macOffset:]
-
-	aesKey := userlib.Hash(encKey)[:16]
-	hmacKey := userlib.Hash(macKey)[:16]
-
-	expectMac, err := userlib.HMACEval(hmacKey, ciphertext)
-	if err != nil {
-		return nil, err
-	}
-
-	if !userlib.HMACEqual(receiveMac, expectMac) {
-		return nil, errors.New("cryptographic doom: MAC verification failed, data tampered")
-	}
-
-	plaintext = userlib.SymDec(aesKey, ciphertext)
-
-	return plaintext, nil
-}
-
 func GetUser(username string, password string) (userdataptr *User, err error) {
 	salt := userlib.Hash([]byte(username))
 	masterKey := userlib.Argon2Key([]byte(password), salt, userlib.AESKeySizeBytes)
@@ -258,21 +215,27 @@ type Inode struct {
 	BlockUUIDs []userlib.UUID
 }
 
-func (userdata *User) getUserKey(salt []byte) (encKey []byte, macKey []byte) {
-	fileSecKey := userlib.Argon2Key(userdata.MasterKey, salt, 32)
-	enc := userlib.Hash(append(fileSecKey, []byte("enc")...))[:16]
-	mac := userlib.Hash(append(fileSecKey, []byte("mac")...))[:16]
-	return enc, mac
-}
-
 func (userdata *User) StoreFile(filename string, content []byte) (err error) {
 	if userdata.Files == nil {
 		userdata.Files = make(map[string]userlib.UUID)
 	}
 
-	salt := userlib.Hash([]byte(filename))
-	encKey, macKey := userdata.getUserKey(salt)
+	fileKey := userlib.RandomBytes(16)
+	inodeUUID := uuid.New()
 
+	access := Access{
+		FileKey:   fileKey,
+		InodeUUID: inodeUUID,
+	}
+
+	accessBytes, _ := json.Marshal(access)
+	pEncKey, pMacKey := userdata.getPersonalKey(filename)
+	accessPayload, _ := encryptAndMAC(accessBytes, pEncKey, pMacKey)
+
+	accessUUID, _ := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	userlib.DatastoreSet(accessUUID, accessPayload)
+
+	fEncKey, fMacKey := getFileKeys(fileKey)
 	blocks := ByteToBlock(content)
 
 	inode := Inode{
@@ -283,25 +246,21 @@ func (userdata *User) StoreFile(filename string, content []byte) (err error) {
 	// enc and store each block
 	for e := blocks.Front(); e != nil; e = e.Next() {
 		fb := e.Value.(*FileBlock)
+		blockUUID := uuid.New() // 数据块 UUID 也是完全随机的
 
-		ciphertext := userlib.SymEnc(encKey, userlib.RandomBytes(16), fb.block[:])
-		bHmac, _ := userlib.HMACEval(macKey, ciphertext)
-
-		payload, _ := json.Marshal(EncryptedData{Ciphertext: ciphertext, Hmac: bHmac})
-		userlib.DatastoreSet(fb.BlockUUID, payload)
-
-		inode.BlockUUIDs = append(inode.BlockUUIDs, fb.BlockUUID)
+		blockPayload, _ := encryptAndMAC(fb.block[:], fEncKey, fMacKey)
+		userlib.DatastoreSet(blockUUID, blockPayload)
+		inode.BlockUUIDs = append(inode.BlockUUIDs, blockUUID)
 	}
 
 	// enc inode
 	inodeBytes, _ := json.Marshal(inode)
-	inodeCipher := userlib.SymEnc(encKey, userlib.RandomBytes(16), inodeBytes)
-	inodeHmac, _ := userlib.HMACEval(macKey, inodeCipher)
+	inodePayload, _ := encryptAndMAC(inodeBytes, fEncKey, fMacKey)
+	userlib.DatastoreSet(inodeUUID, inodePayload)
 
-	inodePayload, _ := json.Marshal(EncryptedData{Ciphertext: inodeCipher, Hmac: inodeHmac})
-
-	inodeStorageUUID := userlib.UUID(userlib.Hash([]byte(filename + userdata.Username))[:16])
-	userlib.DatastoreSet(inodeStorageUUID, inodePayload)
+	// update AccessUUID
+	userdata.Files[filename] = accessUUID
+	userdata.saveUser()
 
 	return nil
 }
@@ -311,57 +270,65 @@ func (userdata *User) AppendToFile(filename string, content []byte) error {
 		return errors.New("Invalid argument")
 	}
 
-	salt := userlib.Hash([]byte(filename))
-	encKey, macKey := userdata.getUserKey(salt)
-
-	inodeUUID := userlib.UUID(userlib.Hash([]byte(filename + userdata.Username))[:16])
-	value, ok := userlib.DatastoreGet(inodeUUID)
+	accessUUID, _ := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename)))
+	accessPayload, ok := userlib.DatastoreGet(accessUUID)
 	if !ok {
-		return errors.New("Can't get File by UUID")
+		return errors.New("file not found: cannot append")
 	}
 
-	userdata.Files[filename] = inodeUUID
-
-	var data EncryptedData
-	err := json.Unmarshal(value, &data)
+	// get decrpt key
+	pEncKey, pMacKey := userdata.getPersonalKey(filename)
+	accessBytes, err := decaryptAndVerify(accessPayload, pEncKey, pMacKey)
 	if err != nil {
 		return err
 	}
 
-	//解密并分离数据
-	inodeBytes, err := decaryptAndVerify(append(data.Ciphertext, data.Hmac...), encKey, macKey)
+	// Unmarshal accessBytes
+	var access Access
+	if err := json.Unmarshal(accessBytes, &access); err != nil {
+		return err
+	}
+
+	// Get File Inode
+	inodePayload, ok := userlib.DatastoreGet(access.InodeUUID)
+	if !ok {
+		return errors.New("file not found: cannot append")
+	}
+
+	fEncKey, fMacKey := getFileKeys(access.FileKey)
+	inodeBytes, err := decaryptAndVerify(inodePayload, fEncKey, fMacKey)
 	if err != nil {
 		return err
 	}
 
 	var inode Inode
-	err = json.Unmarshal(inodeBytes, &inode)
-	if err != nil {
+	if err := json.Unmarshal(inodeBytes, &inode); err != nil {
 		return err
 	}
 
-	// 逐块加密
-	newBlocks := ByteToBlock(content)
-	for e := newBlocks.Front(); e != nil; e = e.Next() {
+	newBlock := ByteToBlock(content)
+	for e := newBlock.Front(); e != nil; e = e.Next() {
 		fb := e.Value.(*FileBlock)
+		blockUUID := uuid.New()
 
-		ciphertext := userlib.SymEnc(encKey, userlib.RandomBytes(16), fb.block[:])
-		bHmac, _ := userlib.HMACEval(macKey, ciphertext)
-
-		payload, _ := json.Marshal(EncryptedData{Ciphertext: ciphertext, Hmac: bHmac})
-		userlib.DatastoreSet(fb.BlockUUID, payload)
-		inode.BlockUUIDs = append(inode.BlockUUIDs, fb.BlockUUID)
+		blockPayload, err := encryptAndMAC(fb.block[:], fEncKey, fMacKey)
+		if err != nil {
+			return err
+		}
+		userlib.DatastoreSet(blockUUID, blockPayload)
+		inode.BlockUUIDs = append(inode.BlockUUIDs, blockUUID)
 	}
-
 	inode.Size += len(content)
 
-	inodeBytes, _ = json.Marshal(inode)
-	inodeCipher := userlib.SymEnc(encKey, userlib.RandomBytes(16), inodeBytes)
-	inodeHmac, _ := userlib.HMACEval(macKey, inodeCipher)
-	inodePayload, _ := json.Marshal(EncryptedData{Ciphertext: inodeCipher, Hmac: inodeHmac})
-	userlib.DatastoreSet(inodeUUID, inodePayload)
+	newInodeBytes, _ := json.Marshal(inode)
+	newInodePayload, _ := encryptAndMAC(newInodeBytes, fEncKey, fMacKey)
+	userlib.DatastoreSet(access.InodeUUID, newInodePayload)
 
 	return nil
+}
+
+func (userdata *User) getFileKeys(key []byte) (any, any) {
+	panic("unimplemented")
 }
 
 func (userdata *User) LoadFile(filename string) (content []byte, err error) {
