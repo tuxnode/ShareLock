@@ -105,6 +105,8 @@ func someUsefulThings() {
 // This is the type definition for the User struct.
 // A Go struct is like a Python or Java class - it can have attributes
 // (e.g. like the Username attribute) and methods (e.g. like the StoreFile method below).
+
+/* MasterKey should not be used to encrypt and extend File Cryptuion */
 type User struct {
 	Username      string
 	PKEPrivateKey userlib.PrivateKeyType
@@ -407,17 +409,4 @@ func (userdata *User) LoadFile(filename string) (content []byte, err error) {
 		data = append(data, blockPlaintext...)
 	}
 	return data[:inode.Size], nil
-}
-
-func (userdata *User) CreateInvitation(filename string, recipientUsername string) (
-	invitationPtr uuid.UUID, err error) {
-	return
-}
-
-func (userdata *User) AcceptInvitation(senderUsername string, invitationPtr uuid.UUID, filename string) error {
-	return nil
-}
-
-func (userdata *User) RevokeAccess(filename string, recipientUsername string) error {
-	return nil
 }
