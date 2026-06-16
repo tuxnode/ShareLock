@@ -590,6 +590,153 @@ func (userdata *User) AcceptInvitation(senderUsername string, invitationPtr uuid
 	return nil
 }
 
+/*
+RevokeAccess revokes a recipient's access to a file by rotating the file key.
+流程: 1)生成新FileKey 2)重新加密所有block和inode
+
+	3)创建owner的新MailboxNode 4)更新其他children的MailboxNode为新FileKey
+	5)从Chidren移除被撤销用户 6)持久化Access
+*/
 func (userdata *User) RevokeAccess(filename string, recipientUsername string) error {
+	// Get Access struct
+	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	if err != nil {
+		return err
+	}
+	accessPayload, ok := userlib.DatastoreGet(accessUUID)
+	if !ok {
+		return errors.New("file not found: cannot revoke")
+	}
+	pEncKey, pMacKey := userdata.getPersonalKey(filename)
+	accessBytes, err := decryptAndVerify(accessPayload, pEncKey, pMacKey)
+	if err != nil {
+		return err
+	}
+
+	var access Access
+	if err := json.Unmarshal(accessBytes, &access); err != nil {
+		return err
+	}
+
+	// Decrypt own MailboxNode to get old file key and inode UUID
+	mailboxPayload, ok := userlib.DatastoreGet(access.MymailboxUUID)
+	if !ok {
+		return errors.New("file not found: mailbox missing")
+	}
+	mEncKey, mMacKey := getMailKeys(access.MymailboxKey)
+	mailboxBytes, err := decryptAndVerify(mailboxPayload, mEncKey, mMacKey)
+	if err != nil {
+		return err
+	}
+
+	var myMailbox MailboxNode
+	if err := json.Unmarshal(mailboxBytes, &myMailbox); err != nil {
+		return err
+	}
+
+	// Generate new file key
+	newFileKey := userlib.RandomBytes(16)
+	newFEncKey, newFMacKey := getFileKeys(newFileKey)
+
+	// Re-encrypt all blocks and inode with new file key
+	inodePayload, ok := userlib.DatastoreGet(myMailbox.InodeUUID)
+	if !ok {
+		return errors.New("file structure corrupted: inode missing")
+	}
+	oldFEncKey, oldFMacKey := getFileKeys(myMailbox.FileKey)
+	inodeBytes, err := decryptAndVerify(inodePayload, oldFEncKey, oldFMacKey)
+	if err != nil {
+		return err
+	}
+
+	var inode Inode
+	if err := json.Unmarshal(inodeBytes, &inode); err != nil {
+		return err
+	}
+
+	for _, blockUUID := range inode.BlockUUIDs {
+		blockPayload, ok := userlib.DatastoreGet(blockUUID)
+		if !ok {
+			return errors.New("Can't get data by this UUID")
+		}
+		blockPlaintext, err := decryptAndVerify(blockPayload, oldFEncKey, oldFMacKey)
+		if err != nil {
+			return err
+		}
+		newBlockPayload, err := encryptAndMAC(blockPlaintext, newFEncKey, newFMacKey)
+		if err != nil {
+			return err
+		}
+		userlib.DatastoreSet(blockUUID, newBlockPayload)
+	}
+
+	newInodeBytes, _ := json.Marshal(inode)
+	newInodePayload, err := encryptAndMAC(newInodeBytes, newFEncKey, newFMacKey)
+	if err != nil {
+		return err
+	}
+	userlib.DatastoreSet(myMailbox.InodeUUID, newInodePayload)
+
+	// Create new MailboxNode for owner with new file key
+	newMailboxKey := userlib.RandomBytes(16)
+	newMailboxUUID := uuid.New()
+	newMailbox := MailboxNode{
+		FileKey:   newFileKey,
+		InodeUUID: myMailbox.InodeUUID,
+	}
+	newMailboxBytes, err := json.Marshal(newMailbox)
+	if err != nil {
+		return err
+	}
+	nmEncKey, nmMacKey := getMailKeys(newMailboxKey)
+	newMailboxPayload, err := encryptAndMAC(newMailboxBytes, nmEncKey, nmMacKey)
+	if err != nil {
+		return err
+	}
+	userlib.DatastoreSet(newMailboxUUID, newMailboxPayload)
+
+	// Update remaining children's MailboxNodes with new file key
+	for childUsername, childInfo := range access.Chidren {
+		if childUsername == recipientUsername {
+			continue
+		}
+		childMailboxPayload, ok := userlib.DatastoreGet(childInfo.MailboxUUID)
+		if !ok {
+			continue
+		}
+		cmEncKey, cmMacKey := getMailKeys(childInfo.MailboxKey)
+		childMailboxBytes, err := decryptAndVerify(childMailboxPayload, cmEncKey, cmMacKey)
+		if err != nil {
+			continue
+		}
+
+		var childMailbox MailboxNode
+		if err := json.Unmarshal(childMailboxBytes, &childMailbox); err != nil {
+			continue
+		}
+		childMailbox.FileKey = newFileKey
+		updatedChildMailboxBytes, _ := json.Marshal(childMailbox)
+		updatedChildMailboxPayload, err := encryptAndMAC(updatedChildMailboxBytes, cmEncKey, cmMacKey)
+		if err != nil {
+			return err
+		}
+		userlib.DatastoreSet(childInfo.MailboxUUID, updatedChildMailboxPayload)
+	}
+
+	// Remove revoked user from Chidren
+	delete(access.Chidren, recipientUsername)
+
+	// Update owner's Access with new mailbox info
+	access.MymailboxUUID = newMailboxUUID
+	access.MymailboxKey = newMailboxKey
+
+	newAccessBytes, _ := json.Marshal(access)
+	newAccessPayload, _ := encryptAndMAC(newAccessBytes, pEncKey, pMacKey)
+	userlib.DatastoreSet(accessUUID, newAccessPayload)
+
+	// update local User status
+	userdata.Files[filename] = accessUUID
+	userdata.saveUser()
+
 	return nil
 }
