@@ -2,7 +2,6 @@ package netstraem
 
 import (
 	"io"
-	"log"
 	"net"
 	"os"
 	"path"
@@ -17,11 +16,26 @@ func FileSeander(filename string, conn *net.Conn) error {
 	}
 	defer file.Close()
 
-	written, err := io.Copy(*conn, file)
+	_, err = io.Copy(*conn, file)
 	if err != nil {
 		return nil
 	}
 
-	log.Printf("Successfully sent %d bytes for file: %s\n", written, filename)
+	return nil
+}
+
+func FileReceiver(filename string, conn *net.Conn) error {
+	safename := path.Base(filename)
+
+	file, err := os.OpenFile(safename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, *conn)
+	if err != nil {
+		return err
+	}
 	return nil
 }
