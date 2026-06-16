@@ -154,11 +154,11 @@ go build ./...
 # 运行所有测试
 go test ./...
 
-# 运行客户端单元测试（白盒）
-go test -v ./internal/client/...
+# 运行加密单元测试（白盒）
+go test -v ./internal/client/encryption/...
 
-# 运行集成测试（黑盒）
-go test -v ./internal/client_test/...
+# 运行客户端集成测试（黑盒）
+go test -v ./internal/client/encryption_test/...
 
 # 运行用户库测试
 go test -v ./project2-userlib/...
@@ -203,19 +203,22 @@ go vet ./...
 ```
 .
 ├── cmd/
-│   └── client/
-│       └── main.go              # CLI 入口（子命令分发）
+│   ├── client/
+│   │   └── main.go              # CLI 入口（子命令分发）
+│   └── server/                  # (空目录, 占位)
 ├── internal/
 │   ├── client/
-│   │   ├── access.go            # 数据结构：MailboxNode, Access, Invitation, ChildrenInfo
-│   │   ├── client.go            # 核心客户端：User 结构、InitUser、GetUser、StoreFile 等
-│   │   ├── client_unittest.go   # 白盒单元测试 (Ginkgo/Gomega)
-│   │   ├── File.go              # 文件块分割/合并工具
-│   │   ├── utils.go             # 密码学辅助函数：encryptAndMAC、decryptAndVerify、密钥派生
+│   │   ├── encryption/
+│   │   │   ├── access.go        # 数据结构：MailboxNode, Access, Invitation, ChildrenInfo
+│   │   │   ├── encryption.go    # 核心客户端：User 结构、InitUser、GetUser、StoreFile 等
+│   │   │   ├── encryption_unittest.go  # 白盒单元测试 (Ginkgo/Gomega)
+│   │   │   ├── File.go          # 文件块分割/合并工具
+│   │   │   └── utils.go         # 密码学辅助函数：encryptAndMAC、decryptAndVerify、密钥派生
 │   │   └── app/
 │   │       └── app.go           # 应用层客户端业务逻辑
-│   └── client_test/
-│       └── client_test.go       # 黑盒集成测试
+│   ├── client/encryption_test/
+│   │   └── encryption_test.go   # 黑盒集成测试
+│   └── server/                  # (空目录, 占位)
 ├── project2-userlib/            # 密码学库 (Datastore, Keystore, 原语)
 │   ├── userlib.go               # 核心密码学原语和存储接口
 │   ├── userlib_test.go          # 库测试
@@ -224,7 +227,10 @@ go vet ./...
 ├── go.sum                       # 依赖校验和
 ├── CHANGELOG.md
 ├── project2-spec.pdf            # 原始项目规范
-└── proj2.excalidraw             # 架构图 (Excalidraw 格式)
+├── proj2.excalidraw             # 架构图 (Excalidraw 格式)
+├── LICENSE
+├── README.md
+└── README-zh.md
 ```
 
 ---

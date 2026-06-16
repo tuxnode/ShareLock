@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/cs161-staff/project2-starter-code/internal/client"
+	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
 	"github.com/google/uuid"
 )
 

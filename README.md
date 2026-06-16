@@ -154,11 +154,11 @@ The project uses [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https:
 # Run all tests
 go test ./...
 
-# Run client unit tests (white-box)
-go test -v ./internal/client/...
+# Run encryption unit tests (white-box)
+go test -v ./internal/client/encryption/...
 
-# Run integration tests (black-box)
-go test -v ./internal/client_test/...
+# Run client integration tests (black-box)
+go test -v ./internal/client/encryption_test/...
 
 # Run user library tests
 go test -v ./project2-userlib/...
@@ -203,19 +203,22 @@ go vet ./...
 ```
 .
 ├── cmd/
-│   └── client/
-│       └── main.go              # CLI entry point (subcommand dispatch)
+│   ├── client/
+│   │   └── main.go              # CLI entry point (subcommand dispatch)
+│   └── server/                  # (empty, placeholder)
 ├── internal/
 │   ├── client/
-│   │   ├── access.go            # Data structures: MailboxNode, Access, Invitation, ChildrenInfo
-│   │   ├── client.go            # Core client: User struct, InitUser, GetUser, StoreFile, etc.
-│   │   ├── client_unittest.go   # White-box unit tests (Ginkgo/Gomega)
-│   │   ├── File.go              # File block splitting/merging utilities
-│   │   ├── utils.go             # Cryptographic helpers: encryptAndMAC, decryptAndVerify, key derivation
+│   │   ├── encryption/
+│   │   │   ├── access.go        # Data structures: MailboxNode, Access, Invitation, ChildrenInfo
+│   │   │   ├── encryption.go    # Core client: User struct, InitUser, GetUser, StoreFile, etc.
+│   │   │   ├── encryption_unittest.go  # White-box unit tests (Ginkgo/Gomega)
+│   │   │   ├── File.go          # File block splitting/merging utilities
+│   │   │   └── utils.go         # Cryptographic helpers: encryptAndMAC, decryptAndVerify, key derivation
 │   │   └── app/
 │   │       └── app.go           # Application-level client business logic layer
-│   └── client_test/
-│       └── client_test.go       # Black-box integration tests
+│   ├── client/encryption_test/
+│   │   └── encryption_test.go   # Black-box integration tests
+│   └── server/                  # (empty, placeholder)
 ├── project2-userlib/            # Cryptographic library (Datastore, Keystore, primitives)
 │   ├── userlib.go               # Core crypto primitives and storage interfaces
 │   ├── userlib_test.go          # Library tests
@@ -224,7 +227,10 @@ go vet ./...
 ├── go.sum                       # Dependency checksums
 ├── CHANGELOG.md
 ├── project2-spec.pdf            # Original project specification
-└── proj2.excalidraw             # Architecture diagram (Excalidraw format)
+├── proj2.excalidraw             # Architecture diagram (Excalidraw format)
+├── LICENSE
+├── README.md
+└── README-zh.md
 ```
 
 ---

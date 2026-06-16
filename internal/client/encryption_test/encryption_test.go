@@ -1,4 +1,4 @@
-package client_test
+package encryption_test
 
 // You MUST NOT change these default imports.  ANY additional imports may
 // break the autograder and everyone will be sad.
@@ -20,9 +20,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
 	userlib "github.com/cs161-staff/project2-userlib"
-
-	"github.com/cs161-staff/project2-starter-code/client"
 )
 
 func TestSetupAndExecution(t *testing.T) {
