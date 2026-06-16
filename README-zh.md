@@ -127,7 +127,10 @@ RevokeAccess (撤销访问):
 | `RevokeAccess` | ✅ 已完成 |
 | `ReadFile` (TLS 流式传输) | ✅ 已完成 |
 | 命令行 (`cmd/client`) | ✅ 已完成 |
-| Netstream (`internal/client/netstream`) | ✅ 已完成 |
+| Netstream (`internal/netstream`) | ✅ 已完成 |
+| KV 存储服务端 (`cmd/server`) | ✅ 已完成 |
+| BadgerDB 存储 (`internal/server/store`) | ✅ 已完成 |
+| 二进制协议处理 (`internal/server/handler`) | ✅ 已完成 |
 
 ---
 
@@ -173,7 +176,7 @@ go test -v -run "TestSetupAndExecution" ./...
 ### CLI 使用
 
 ```bash
-# 构建 CLI 二进制文件
+# 构建客户端二进制
 go build -o sharelock ./cmd/client
 
 # 初始化用户
@@ -194,6 +197,10 @@ invite=$(./sharelock createinvitation -filename hello.txt -recipient bob)
 
 # 通过 TLS 加密流读取文件
 ./sharelock read -filename hello.txt -address localhost:8080
+
+# 构建并运行 KV 存储服务端（需要 TLS 证书）
+go build -o sharelock-server ./cmd/server
+./sharelock-server -address :8080 -dir ./data -cert cert.pem -key key.pem
 ```
 
 ### 代码检查
@@ -211,7 +218,34 @@ go vet ./...
 ├── cmd/
 │   ├── client/
 │   │   └── main.go              # CLI 入口（子命令分发）
-│   └── server/                  # (空目录, 占位)
+│   └── server/
+│       └── main.go              # KV 存储服务端 (TLS + BadgerDB)
+├── internal/
+│   ├── client/
+│   │   ├── encryption/
+│   │   │   ├── access.go        # 数据结构：MailboxNode, Access, Invitation, ChildrenInfo
+│   │   │   ├── encryption.go    # 核心客户端：User 结构、InitUser、GetUser、StoreFile 等
+│   │   │   ├── encryption_unittest.go  # 白盒单元测试 (Ginkgo/Gomega)
+│   │   │   ├── File.go          # 文件块分割/合并工具
+│   │   │   └── utils.go         # 密码学辅助函数：encryptAndMAC、decryptAndVerify、密钥派生
+│   │   ├── app/
+│   │   │   └── app.go           # 应用层客户端业务逻辑
+│   │   └── netstream/
+│   │       └── netstream.go     # TLS 加密文件流式传输 (FileSeander / FileReceiver)
+│   ├── client/encryption_test/
+│   │   └── encryption_test.go   # 黑盒集成测试
+│   ├── client/app_test/
+│   │   └── app_test.go          # 应用客户端集成测试
+│   ├── netstream/
+│   │   └── netstream.go         # TLS 加密文件流式传输 (FileSeander / FileReceiver)
+│   ├── server/
+│   │   ├── server.go            # TLS 监听循环，每个连接一个 goroutine
+│   │   ├── store/
+│   │   │   └── store.go         # BadgerDB KV 存储 (Get, Set, Delete, Exists)
+│   │   └── handler/
+│   │       └── handler.go       # 二进制协议处理 (GET 0x01 / SET 0x02 / DELETE 0x03)
+│   └── integration_test/
+│       └── server_test.go       # 服务端 TLS 集成测试
 ├── internal/
 │   ├── client/
 │   │   ├── encryption/

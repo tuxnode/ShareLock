@@ -127,7 +127,10 @@ RevokeAccess:
 | `RevokeAccess` | ✅ Implemented |
 | `ReadFile` (TLS streaming) | ✅ Implemented |
 | CLI (`cmd/client`) | ✅ Implemented |
-| Netstream (`internal/client/netstream`) | ✅ Implemented |
+| Netstream (`internal/netstream`) | ✅ Implemented |
+| KV Store Server (`cmd/server`) | ✅ Implemented |
+| BadgerDB Store (`internal/server/store`) | ✅ Implemented |
+| Binary Protocol Handler (`internal/server/handler`) | ✅ Implemented |
 
 ---
 
@@ -173,7 +176,7 @@ go test -v -run "TestSetupAndExecution" ./...
 ### CLI Usage
 
 ```bash
-# Build the CLI binary
+# Build the client binary
 go build -o sharelock ./cmd/client
 
 # Initialize a user
@@ -194,6 +197,10 @@ invite=$(./sharelock createinvitation -filename hello.txt -recipient bob)
 
 # Read a file via TLS-encrypted stream
 ./sharelock read -filename hello.txt -address localhost:8080
+
+# Build and run the KV Store server (requires TLS cert)
+go build -o sharelock-server ./cmd/server
+./sharelock-server -address :8080 -dir ./data -cert cert.pem -key key.pem
 ```
 
 ### Linting
@@ -211,7 +218,8 @@ go vet ./...
 ├── cmd/
 │   ├── client/
 │   │   └── main.go              # CLI entry point (subcommand dispatch)
-│   └── server/                  # (empty, placeholder)
+│   └── server/
+│       └── main.go              # KV Store server (TLS + BadgerDB)
 ├── internal/
 │   ├── client/
 │   │   ├── encryption/
@@ -226,7 +234,18 @@ go vet ./...
 │   │       └── netstream.go     # TLS-encrypted file streaming (FileSeander / FileReceiver)
 │   ├── client/encryption_test/
 │   │   └── encryption_test.go   # Black-box integration tests
-│   └── server/                  # (empty, placeholder)
+│   ├── client/app_test/
+│   │   └── app_test.go          # App client integration tests
+│   ├── netstream/
+│   │   └── netstream.go         # TLS-encrypted file streaming (FileSeander / FileReceiver)
+│   ├── server/
+│   │   ├── server.go            # TLS listener loop, goroutine-per-conn
+│   │   ├── store/
+│   │   │   └── store.go         # BadgerDB KV store (Get, Set, Delete, Exists)
+│   │   └── handler/
+│   │       └── handler.go       # Binary protocol handler (GET 0x01 / SET 0x02 / DELETE 0x03)
+│   └── integration_test/
+│       └── server_test.go       # Server TLS integration tests
 ├── project2-userlib/            # Cryptographic library (Datastore, Keystore, primitives)
 │   ├── userlib.go               # Core crypto primitives and storage interfaces
 │   ├── userlib_test.go          # Library tests
