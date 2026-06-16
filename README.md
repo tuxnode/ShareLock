@@ -246,10 +246,9 @@ make vet
 │   │       └── handler.go       # Binary protocol handler (GET 0x01 / SET 0x02 / DELETE 0x03)
 │   └── integration_test/
 │       └── server_test.go       # Server TLS integration tests
-├── project2-userlib/            # Cryptographic library (Datastore, Keystore, primitives)
-│   ├── userlib.go               # Core crypto primitives and storage interfaces
-│   ├── userlib_test.go          # Library tests
-│   └── go.mod
+├── internal/userlib/            # Cryptographic library (Datastore, Keystore, primitives)
+│   ├── userlib.go               # Core crypto primitives + network KV storage backend
+│   └── userlib_test.go          # Library tests
 ├── go.mod                       # Module definition
 ├── go.sum                       # Dependency checksums
 ├── CHANGELOG.md
@@ -264,7 +263,7 @@ make vet
 
 ## User Library API
 
-The project relies on `github.com/cs161-staff/project2-userlib` which provides:
+The project relies on `internal/userlib` which provides:
 
 | Function | Purpose |
 |----------|---------|

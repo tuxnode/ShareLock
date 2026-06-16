@@ -261,10 +261,9 @@ make vet
 │   ├── client/encryption_test/
 │   │   └── encryption_test.go   # 黑盒集成测试
 │   └── server/                  # (空目录, 占位)
-├── project2-userlib/            # 密码学库 (Datastore, Keystore, 原语)
-│   ├── userlib.go               # 核心密码学原语和存储接口
-│   ├── userlib_test.go          # 库测试
-│   └── go.mod
+├── internal/userlib/            # 密码学库 (Datastore, Keystore, 原语)
+│   ├── userlib.go               # 核心密码学原语 + 网络 KV 存储后端
+│   └── userlib_test.go          # 库测试
 ├── go.mod                       # 模块定义
 ├── go.sum                       # 依赖校验和
 ├── CHANGELOG.md
@@ -279,7 +278,7 @@ make vet
 
 ## 用户库 API
 
-项目依赖 `github.com/cs161-staff/project2-userlib`，提供以下功能：
+项目依赖 `internal/userlib`，提供以下功能：
 
 | 函数 | 用途 |
 |----------|---------|
