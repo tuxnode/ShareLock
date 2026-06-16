@@ -15,7 +15,10 @@ ShareLock uses [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://
 | Encryption Unit Tests | `encryption` | White-box unit | `internal/client/encryption/encryption_unittest.go` |
 | Encryption Integration Tests | `encryption_test` | Black-box integration | `internal/client/encryption_test/encryption_test.go` |
 | App Client Tests | `app_test` | Black-box integration | `internal/client/app_test/app_test.go` |
-| Netstream Tests | `netstream` | (none yet) | `internal/client/netstream/netstream.go` |
+| Netstream Tests | `netstream` | (none yet) | `internal/netstream/netstream.go` |
+| KV Store Unit Tests | `store` | Unit | `internal/server/store/store_test.go` |
+| Handler Protocol Tests | `handler` | Unit | `internal/server/handler/handler_test.go` |
+| Server Integration Tests | `integration_test` | Integration (TLS) | `internal/integration_test/server_test.go` |
 
 ---
 
@@ -33,6 +36,15 @@ go test -v ./internal/client/encryption_test/...
 
 # Run app client integration tests (black-box)
 go test -v ./internal/client/app_test/...
+
+# Run KV store unit tests
+go test -v ./internal/server/store/...
+
+# Run handler protocol tests
+go test -v ./internal/server/handler/...
+
+# Run server TLS integration tests
+go test -v ./internal/integration_test/...
 
 # Run a specific test suite by name
 go test -v -run "TestApp" ./...

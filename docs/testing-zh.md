@@ -13,7 +13,10 @@ ShareLock 使用 [Ginkgo v2](https://onsi.github.io/ginkgo/) 和 [Gomega](https:
 | 加密单元测试 | `encryption` | 白盒单元测试 | `internal/client/encryption/encryption_unittest.go` |
 | 加密集成测试 | `encryption_test` | 黑盒集成测试 | `internal/client/encryption_test/encryption_test.go` |
 | 应用客户端测试 | `app_test` | 黑盒集成测试 | `internal/client/app_test/app_test.go` |
-| Netstream 测试 | `netstream` | （暂无） | `internal/client/netstream/netstream.go` |
+| Netstream 测试 | `netstream` | （暂无） | `internal/netstream/netstream.go` |
+| KV 存储单元测试 | `store` | 单元测试 | `internal/server/store/store_test.go` |
+| 处理协议测试 | `handler` | 单元测试 | `internal/server/handler/handler_test.go` |
+| 服务端集成测试 | `integration_test` | 集成测试 (TLS) | `internal/integration_test/server_test.go` |
 
 ---
 
@@ -31,6 +34,15 @@ go test -v ./internal/client/encryption_test/...
 
 # 运行应用客户端集成测试（黑盒）
 go test -v ./internal/client/app_test/...
+
+# 运行 KV 存储单元测试
+go test -v ./internal/server/store/...
+
+# 运行处理协议测试
+go test -v ./internal/server/handler/...
+
+# 运行服务端 TLS 集成测试
+go test -v ./internal/integration_test/...
 
 # 按测试套件名称运行
 go test -v -run "TestApp" ./...
