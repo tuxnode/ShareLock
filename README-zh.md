@@ -109,6 +109,7 @@ RevokeAccess (撤销访问):
 - **即时撤销：** 动态密钥轮换机制在撤销时更换文件密钥，隔离被撤销用户，并透明更新剩余共享者而不中断其访问。
 - **追加优化：** 向现有大文件追加内容时，无需下载或重新加密整个文件结构。
 - **先加密后 MAC：** 所有密文在存储前均通过 HMAC-SHA512 认证，保证完整性。
+- **TLS 加密流式传输：** `read` 命令通过 `netstream` 模块经 TLS 加密的 TCP 连接下载文件，保证传输中的机密性。
 
 ---
 
@@ -124,7 +125,9 @@ RevokeAccess (撤销访问):
 | `CreateInvitation` | ✅ 已完成 |
 | `AcceptInvitation` | ✅ 已完成 |
 | `RevokeAccess` | ✅ 已完成 |
+| `ReadFile` (TLS 流式传输) | ✅ 已完成 |
 | 命令行 (`cmd/client`) | ✅ 已完成 |
+| Netstream (`internal/client/netstream`) | ✅ 已完成 |
 
 ---
 
@@ -188,6 +191,9 @@ invite=$(./sharelock createinvitation -filename hello.txt -recipient bob)
 
 # 撤销访问
 ./sharelock revokeaccess -filename hello.txt -recipient bob
+
+# 通过 TLS 加密流读取文件
+./sharelock read -filename hello.txt -address localhost:8080
 ```
 
 ### 代码检查
@@ -214,8 +220,10 @@ go vet ./...
 │   │   │   ├── encryption_unittest.go  # 白盒单元测试 (Ginkgo/Gomega)
 │   │   │   ├── File.go          # 文件块分割/合并工具
 │   │   │   └── utils.go         # 密码学辅助函数：encryptAndMAC、decryptAndVerify、密钥派生
-│   │   └── app/
-│   │       └── app.go           # 应用层客户端业务逻辑
+│   │   ├── app/
+│   │   │   └── app.go           # 应用层客户端业务逻辑
+│   │   └── netstream/
+│   │       └── netstream.go     # TLS 加密文件流式传输 (FileSeander / FileReceiver)
 │   ├── client/encryption_test/
 │   │   └── encryption_test.go   # 黑盒集成测试
 │   └── server/                  # (空目录, 占位)

@@ -109,6 +109,7 @@ RevokeAccess:
 - **Instant Revocation:** Dynamic re-keying mechanism rotates the file key on revocation, isolates revoked users, and transparently updates remaining sharees without breaking their access.
 - **Append Optimization:** Append to existing large files without downloading or re-encrypting the entire file structure.
 - **Encrypt-Then-MAC:** All ciphertexts are authenticated with HMAC-SHA512 before storage, guaranteeing integrity.
+- **TLS-Encrypted Streaming:** The `read` command downloads files over a TLS-encrypted TCP connection via the `netstream` module, ensuring confidentiality in transit.
 
 ---
 
@@ -124,7 +125,9 @@ RevokeAccess:
 | `CreateInvitation` | ✅ Implemented |
 | `AcceptInvitation` | ✅ Implemented |
 | `RevokeAccess` | ✅ Implemented |
+| `ReadFile` (TLS streaming) | ✅ Implemented |
 | CLI (`cmd/client`) | ✅ Implemented |
+| Netstream (`internal/client/netstream`) | ✅ Implemented |
 
 ---
 
@@ -188,6 +191,9 @@ invite=$(./sharelock createinvitation -filename hello.txt -recipient bob)
 
 # Revoke access
 ./sharelock revokeaccess -filename hello.txt -recipient bob
+
+# Read a file via TLS-encrypted stream
+./sharelock read -filename hello.txt -address localhost:8080
 ```
 
 ### Linting
@@ -214,8 +220,10 @@ go vet ./...
 │   │   │   ├── encryption_unittest.go  # White-box unit tests (Ginkgo/Gomega)
 │   │   │   ├── File.go          # File block splitting/merging utilities
 │   │   │   └── utils.go         # Cryptographic helpers: encryptAndMAC, decryptAndVerify, key derivation
-│   │   └── app/
-│   │       └── app.go           # Application-level client business logic layer
+│   │   ├── app/
+│   │   │   └── app.go           # Application-level client business logic layer
+│   │   └── netstream/
+│   │       └── netstream.go     # TLS-encrypted file streaming (FileSeander / FileReceiver)
 │   ├── client/encryption_test/
 │   │   └── encryption_test.go   # Black-box integration tests
 │   └── server/                  # (empty, placeholder)
