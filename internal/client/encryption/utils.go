@@ -1,4 +1,4 @@
-package client
+package encryption
 
 import (
 	"encoding/json"

@@ -1,4 +1,4 @@
-package client
+package encryption
 
 // CS 161 Project 2
 
