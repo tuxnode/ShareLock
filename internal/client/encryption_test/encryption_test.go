@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
-	userlib "github.com/cs161-staff/project2-userlib"
+	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 )
 
 func TestSetupAndExecution(t *testing.T) {

@@ -9,7 +9,7 @@ package encryption
 // - encoding/json
 // - errors
 // - fmt
-// - github.com/cs161-staff/project2-userlib
+// - github.com/cs161-staff/project2-starter-code/internal/userlib
 // - github.com/google/uuid
 // - strconv
 // - strings
@@ -17,7 +17,7 @@ package encryption
 import (
 	"encoding/json"
 
-	userlib "github.com/cs161-staff/project2-userlib"
+	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 	"github.com/google/uuid"
 
 	// hex.EncodeToString(...) is useful for converting []byte to string

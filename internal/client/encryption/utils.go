@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	userlib "github.com/cs161-staff/project2-userlib"
+	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 	"github.com/google/uuid"
 )
 

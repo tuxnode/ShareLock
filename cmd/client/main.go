@@ -15,6 +15,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Parse global flags (before subcommand)
+	kvAddr := os.Getenv("SHARELOCK_KV_ADDR")
+	kvTLS := true
+	if v := os.Getenv("SHARELOCK_KV_TLS"); v == "false" || v == "0" {
+		kvTLS = false
+	}
+
+	// Connect to KV server if configured
+	if kvAddr != "" {
+		app.Connect(kvAddr, kvTLS)
+		defer app.Disconnect()
+	}
+
 	cli := &app.Client{}
 
 	switch os.Args[1] {
@@ -133,6 +146,10 @@ func main() {
 
 func printUsage() {
 	fmt.Fprintf(os.Stderr, `Usage: %s <command> [flags]
+
+Environment:
+  SHARELOCK_KV_ADDR   KV server address (e.g. localhost:8080)
+  SHARELOCK_KV_TLS    enable TLS for KV server (default true)
 
 Commands:
   inituser -username <name> -password <pw>

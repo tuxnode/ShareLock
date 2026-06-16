@@ -6,11 +6,20 @@ import (
 
 	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
 	"github.com/cs161-staff/project2-starter-code/internal/client/netstream"
+	"github.com/cs161-staff/project2-starter-code/internal/userlib"
 	"github.com/google/uuid"
 )
 
 type Client struct {
 	user *client.User
+}
+
+func Connect(address string, tlsEnabled bool) {
+	userlib.Connect(address, tlsEnabled)
+}
+
+func Disconnect() {
+	userlib.Disconnect()
 }
 
 func (c *Client) InitUser(username string, password string) error {

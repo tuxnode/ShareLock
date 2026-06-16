@@ -18,7 +18,7 @@ package encryption
 // integration tests (client_test.go). In other words, the "client." in front is no longer needed.
 
 import (
-	userlib "github.com/cs161-staff/project2-userlib"
+	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 	"testing"
 )
 

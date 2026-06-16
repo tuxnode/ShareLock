@@ -1,7 +1,7 @@
 package encryption
 
 import (
-	userlib "github.com/cs161-staff/project2-userlib"
+	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 )
 
 /* Mailbox Node structure */
