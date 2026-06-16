@@ -154,7 +154,7 @@ go build ./...
 
 ### 运行测试
 
-项目使用 [Ginkgo v2](https://onsi.github.io/ginkgo/) 和 [Gomega](https://onsi.github.io/gomega/) 进行测试。详细文档请参阅[测试说明文档](./docs/testing-zh.md)。
+项目使用 [Ginkgo v2](https://onsi.github.io/ginkgo/) 和 [Gomega](https://onsi.github.io/gomega/) 进行测试。详细文档请参阅[测试说明文档](./docs/testing-zh.md)，包含[基准测试](./docs/testing-zh.md#性能基准测试)。
 
 ```bash
 # 运行所有测试

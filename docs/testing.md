@@ -53,6 +53,28 @@ go test -v -run "TestApp" ./...
 go test -v ./internal/client/app_test/ --ginkgo.focus="RevokeAccess"
 ```
 
+### Running Benchmarks
+
+```bash
+# Run all benchmarks (all packages)
+go test ./... -bench=. -benchtime=1s
+
+# Run KV store benchmarks only
+go test ./internal/server/store/ -bench=. -benchtime=1s
+
+# Run handler protocol benchmarks
+go test ./internal/server/handler/ -bench=. -benchtime=1s
+
+# Run TLS end-to-end benchmarks
+go test ./internal/integration_test/ -bench=. -benchtime=1s -timeout=120s
+
+# Run with memory allocation stats
+go test ./internal/server/store/ -bench=. -benchmem
+
+# Filter benchmarks by name
+go test ./internal/integration_test/ -bench=Parallel -benchtime=1s
+```
+
 ---
 
 ## App Client Tests (`internal/client/app_test/app_test.go`)
@@ -156,6 +178,63 @@ func TestSuite(t *testing.T) {
     RegisterFailHandler(Fail)
     RunSpecs(t, "Suite Description")
 }
+```
+
+---
+
+## Benchmarks
+
+Performance benchmarks measure three layers of the stack on real hardware.
+
+### Benchmark Suites
+
+| Suite | File | What it measures |
+|-------|------|------------------|
+| Store | `internal/server/store/store_bench_test.go` | Raw BadgerDB throughput: GET, SET, DELETE, parallel ops, value size scaling |
+| Handler | `internal/server/handler/handler_bench_test.go` | In-process protocol cost: op dispatch, key/value encoding |
+| TLS Integration | `internal/integration_test/server_bench_test.go` | End-to-end TLS: single-op latency, parallel clients, pipelining, large values |
+
+### Reference Results (i5-11500 @ 2.70GHz)
+
+**Store (BadgerDB, ZeroMQ LSM):**
+| Benchmark | Time/op | Notes |
+|-----------|---------|-------|
+| `StoreGet` | ~713 ns | Near-memory speed |
+| `StoreSet` | ~5.9 µs | fsync-bound; disable SyncWrites for ~1 µs |
+| `StoreGetParallel` | ~601 ns | RLock scales well |
+| `StoreSetParallel` | ~4.0 µs | Write lock contention visible |
+| `StoreValueSize/64KB` | ~136 µs | Throughput: ~480 MB/s |
+
+**Handler (in-process, no network):**
+| Benchmark | Time/op | Notes |
+|-----------|---------|-------|
+| `HandlerGet` | ~747 ns | Negligible protocol overhead vs raw store |
+| `HandlerSet` | ~5.9 µs | Protocol + store combined |
+| `HandlerSetValueSize/64KB` | ~85 µs | Pure store overhead dominates |
+
+**TLS End-to-End (127.0.0.1, self-signed cert):**
+| Benchmark | Time/op | Notes |
+|-----------|---------|-------|
+| `TLS_Get` | ~13 µs | TLS handshake + encryption + round trip |
+| `TLS_Set` | ~20 µs | |
+| `TLS_SetGet` | ~36 µs | Combined read + write |
+| `TLS_GetParallel` | ~1.8 µs | Connection pool scales |
+| `TLS_SetParallel` | ~6.7 µs | |
+| `TLS_Pipeline` | ~10 µs / op | 100-batch pipeline amortizes overhead |
+| `TLS_ValueSize/64KB` | ~260 µs | Throughput: ~250 MB/s |
+
+### Interpreting Results
+
+- **Store** benchmarks reflect raw database performance; any improvement here benefits all layers.
+- **Handler** overhead is <5% for most operations — the protocol is not a bottleneck.
+- **TLS** adds 12–15 µs per operation vs in-process handler, dominated by crypto + network round trip.
+- For maximum throughput, use **pipelining** (batch writes before reading responses) or **parallel connections**.
+
+```bash
+# Reproduce results on your hardware
+go test ./internal/server/store/ -bench=. -benchtime=1s
+go test ./internal/server/handler/ -bench=. -benchtime=1s
+go test ./internal/integration_test/ -bench=. -benchtime=1s -timeout=120s
 ```
 
 ---

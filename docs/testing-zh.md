@@ -51,6 +51,28 @@ go test -v -run "TestApp" ./...
 go test -v ./internal/client/app_test/ --ginkgo.focus="RevokeAccess"
 ```
 
+### 运行性能基准测试
+
+```bash
+# 运行所有基准测试
+go test ./... -bench=. -benchtime=1s
+
+# 运行 KV 存储基准测试
+go test ./internal/server/store/ -bench=. -benchtime=1s
+
+# 运行处理协议基准测试
+go test ./internal/server/handler/ -bench=. -benchtime=1s
+
+# 运行 TLS 端到端基准测试
+go test ./internal/integration_test/ -bench=. -benchtime=1s -timeout=120s
+
+# 输出内存分配统计
+go test ./internal/server/store/ -bench=. -benchmem
+
+# 按名称过滤基准测试
+go test ./internal/integration_test/ -bench=Parallel -benchtime=1s
+```
+
 ---
 
 ## 应用客户端测试（`internal/client/app_test/app_test.go`）
@@ -154,6 +176,63 @@ func TestSuite(t *testing.T) {
     RegisterFailHandler(Fail)
     RunSpecs(t, "套件描述")
 }
+```
+
+---
+
+## 性能基准测试
+
+基准测试覆盖三层堆栈，在实际硬件上测量性能。
+
+### 基准测试套件
+
+| 套件 | 文件 | 测量内容 |
+|------|------|----------|
+| Store | `internal/server/store/store_bench_test.go` | BadgerDB 裸吞吐：GET, SET, DELETE, 并行操作, 值大小影响 |
+| Handler | `internal/server/handler/handler_bench_test.go` | 进程内协议开销：操作分发, 键/值编解码 |
+| TLS 集成 | `internal/integration_test/server_bench_test.go` | 端到端 TLS：单操作延迟, 并行客户端, 流水线, 大值 |
+
+### 参考结果 (i5-11500 @ 2.70GHz)
+
+**Store (BadgerDB LSM):**
+| 基准测试 | 耗时/op | 说明 |
+|-----------|---------|------|
+| `StoreGet` | ~713 ns | 接近内存速度 |
+| `StoreSet` | ~5.9 µs | 受 fsync 限制；关 SyncWrites 可降至 ~1 µs |
+| `StoreGetParallel` | ~601 ns | 读锁扩展性好 |
+| `StoreSetParallel` | ~4.0 µs | 写锁竞争可见 |
+| `StoreValueSize/64KB` | ~136 µs | 吞吐: ~480 MB/s |
+
+**Handler (in-process, 无网络):**
+| 基准测试 | 耗时/op | 说明 |
+|-----------|---------|------|
+| `HandlerGet` | ~747 ns | 协议开销可忽略 |
+| `HandlerSet` | ~5.9 µs | 协议 + 存储合并 |
+| `HandlerSetValueSize/64KB` | ~85 µs | 存储占主导 |
+
+**TLS 端到端 (127.0.0.1, 自签名证书):**
+| 基准测试 | 耗时/op | 说明 |
+|-----------|---------|------|
+| `TLS_Get` | ~13 µs | TLS 握手 + 加密 + 网络往返 |
+| `TLS_Set` | ~20 µs | |
+| `TLS_SetGet` | ~36 µs | 读写组合 |
+| `TLS_GetParallel` | ~1.8 µs | 连接池扩展性好 |
+| `TLS_SetParallel` | ~6.7 µs | |
+| `TLS_Pipeline` | ~10 µs / op | 100 批流水线可摊薄开销 |
+| `TLS_ValueSize/64KB` | ~260 µs | 吞吐: ~250 MB/s |
+
+### 结论
+
+- **Store** 基准反映数据库裸性能；优化此处有利于所有上层。
+- **Handler** 开销 <5% — 协议不是瓶颈。
+- **TLS** 相比进程内 handler 增加 12–15 µs，由加密 + 网络往返主导。
+- 最大化吞吐：使用**流水线**（批量写入再读取响应）或**并行连接**。
+
+```bash
+# 在你的硬件上复现以上结果
+go test ./internal/server/store/ -bench=. -benchtime=1s
+go test ./internal/server/handler/ -bench=. -benchtime=1s
+go test ./internal/integration_test/ -bench=. -benchtime=1s -timeout=120s
 ```
 
 ---

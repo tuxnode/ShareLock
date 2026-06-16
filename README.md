@@ -154,7 +154,7 @@ go build ./...
 
 ### Running Tests
 
-The project uses [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/) for testing. See the [Testing Guide](./docs/testing.md) for detailed documentation.
+The project uses [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/) for testing. See the [Testing Guide](./docs/testing.md) for detailed documentation, including [benchmarks](./docs/testing.md#benchmarks).
 
 ```bash
 # Run all tests
