@@ -172,7 +172,15 @@ go test -v -run "TestSetupAndExecution" ./...
 
 ### Host Management
 
-The client uses `~/.config/sharelock/.hosts` (fallback: `~/.hosts`) to manage KV server connections.
+The client uses a `.hosts` file to manage KV server connections. Configuration priority:
+
+| Priority | Path | Description |
+|----------|------|-------------|
+| 1 | `$SHARELOCK_CONFIG_DIR/.hosts` | Env override |
+| 2 | `~/.config/sharelock/.hosts` | XDG standard (recommended) |
+| 3 | `~/.hosts` | Legacy fallback |
+
+Only one file is loaded — higher priority paths are checked first.
 
 ```bash
 # Add a KV server host

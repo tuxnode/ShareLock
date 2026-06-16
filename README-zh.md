@@ -172,7 +172,15 @@ go test -v -run "TestSetupAndExecution" ./...
 
 ### 主机管理
 
-客户端使用 `~/.config/sharelock/.hosts`（备选 `~/.hosts`）管理 KV 服务端连接。
+客户端使用 `.hosts` 文件管理 KV 服务端连接。配置优先级：
+
+| 优先级 | 路径 | 说明 |
+|--------|------|------|
+| 1 | `$SHARELOCK_CONFIG_DIR/.hosts` | 环境变量覆盖 |
+| 2 | `~/.config/sharelock/.hosts` | XDG 标准路径（推荐） |
+| 3 | `~/.hosts` | 家目录 fallback |
+
+只会加载一个文件——按优先级从高到低检查，找到即用。
 
 ```bash
 # 添加 KV 服务端
