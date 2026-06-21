@@ -55,7 +55,7 @@ User Password
 - **File Blocking:** Files are split into 512-byte `FileBlock` chunks, each encrypted independently with a file-specific key derived from a random `FileKey`.
 - **Inode:** Tracks total file size and an ordered list of block UUIDs. Encrypted and MAC'd as a single blob under the file key.
 - **MailboxNode:** Per-user pointer containing `FileKey` and `InodeUUID`, encrypted with a mailbox-specific key. Each user (owner or sharee) has their own MailboxNode.
-- **Access Record:** Maps a filename to the owner's MailboxNode UUID/key and maintains a sharing tree (`Chidren` map) of all direct sharees for revocation.
+- **Access Record:** Maps a filename to the owner's MailboxNode UUID/key and maintains a sharing tree (`Children` map) of all direct sharees for revocation.
 - **Invitation:** Encrypted payload containing a `MailboxUUID` and `MailboxKey`, transmitted via RSA-OAEP + digital signature to grant access.
 - **User Struct:** Contains the username, RSA private key, DS signing key, Argon2-derived master key, and a map of known file access pointers. Encrypted under user's derived keys and stored in the Datastore.
 
@@ -86,7 +86,7 @@ CreateInvitation:
   → Decrypt own MailboxNode
   → Create new MailboxNode for recipient (same FileKey/InodeUUID)
   → Encrypt invitation (RSA-OAEP) + sign (RSA-PKCS1.5)
-  → Update sender's Access.Chidren
+  → Update sender's Access.Children
 
 AcceptInvitation:
   → Verify signature + decrypt invitation (RSA-OAEP)
@@ -97,7 +97,7 @@ RevokeAccess:
   → Re-encrypt all blocks and inode with new key
   → Create new owner MailboxNode
   → Update remaining children's MailboxNodes with new FileKey
-  → Remove revoked user from Chidren
+  → Remove revoked user from Children
 ```
 
 ---
@@ -126,6 +126,8 @@ RevokeAccess:
 | `AcceptInvitation` | ✅ Implemented |
 | `RevokeAccess` | ✅ Implemented |
 | `ReadFile` (TLS streaming) | ✅ Implemented |
+| Service API (`UserService`, `FileService`, `InvitationService`) | ✅ Implemented |
+| Storage Abstraction (`StorageService`, `KeyStoreService` interfaces) | ✅ Implemented |
 | CLI (`cmd/client`) | ✅ Implemented |
 | Netstream (`internal/netstream`) | ✅ Implemented |
 | KV Store Server (`cmd/server`) | ✅ Implemented |
@@ -257,20 +259,23 @@ make vet
 │   │   │   └── config.go        # .hosts file management (~/.config/sharelock/.hosts)
 │   │   ├── encryption/
 │   │   │   ├── access.go        # Data structures: MailboxNode, Access, Invitation, ChildrenInfo
-│   │   │   ├── encryption.go    # Core client: User struct, InitUser, GetUser, StoreFile, etc.
+│   │   │   ├── encryption.go    # Legacy API: User struct, InitUser, GetUser, StoreFile, etc.
 │   │   │   ├── encryption_unittest.go  # White-box unit tests (Ginkgo/Gomega)
+│   │   │   ├── example_test.go  # Service API usage examples
 │   │   │   ├── File.go          # File block splitting/merging utilities
+│   │   │   ├── memory.go        # In-memory storage implementations for testing
+│   │   │   ├── service.go       # Service layer: UserService, FileService, InvitationService
 │   │   │   └── utils.go         # Cryptographic helpers: encryptAndMAC, decryptAndVerify, key derivation
 │   │   ├── app/
 │   │   │   └── app.go           # Application-level client business logic layer
 │   │   └── netstream/
-│   │       └── netstream.go     # TLS-encrypted file streaming (FileSeander / FileReceiver)
+│   │       └── netstream.go     # TLS-encrypted file streaming (FileSender / FileReceiver)
 │   ├── client/encryption_test/
-│   │   └── encryption_test.go   # Black-box integration tests
+│   │   └── encryption_test.go   # Black-box integration tests (Service API)
 │   ├── client/app_test/
 │   │   └── app_test.go          # App client integration tests
 │   ├── netstream/
-│   │   └── netstream.go         # TLS-encrypted file streaming (FileSeander / FileReceiver)
+│   │   └── netstream.go         # TLS-encrypted file streaming (FileSender / FileReceiver)
 │   ├── server/
 │   │   ├── server.go            # TLS listener loop, goroutine-per-conn
 │   │   ├── store/
@@ -320,6 +325,58 @@ The project relies on `internal/userlib` which provides:
 | `KeystoreGet(key)` | Retrieve from trusted public-key store |
 | `KeystoreSet(key, value)` | Store to trusted public-key store |
 | `DatastoreGetBandwidth()` | Measure storage bandwidth (testing) |
+
+---
+
+## Service API
+
+The project provides a service-based API with interface separation for better testability and flexibility.
+
+### Interfaces
+
+| Interface | Methods | Purpose |
+|-----------|---------|---------|
+| `StorageService` | `Get`, `Set`, `Delete` | Abstracts storage operations |
+| `KeyStoreService` | `Get`, `Set` | Abstracts public key storage |
+
+### Services
+
+| Service | Methods | Purpose |
+|---------|---------|---------|
+| `UserService` | `InitUser`, `GetUser` | User lifecycle management |
+| `FileService` | `StoreFile`, `LoadFile`, `AppendToFile` | File operations |
+| `InvitationService` | `CreateInvitation`, `AcceptInvitation`, `RevokeAccess` | Sharing and revocation |
+
+### Usage Example
+
+```go
+// Create storage implementations
+storage := encryption.NewUserlibStorage()    // or NewMemoryStorage() for testing
+keyStore := encryption.NewUserlibKeyStore()  // or NewMemoryKeyStore() for testing
+
+// Create services
+userService := encryption.NewUserService(storage, keyStore)
+fileService := encryption.NewFileService(storage, keyStore)
+invitationService := encryption.NewInvitationService(storage, keyStore)
+
+// Initialize user
+user, err := userService.InitUser("alice", "password")
+
+// Store file
+err = fileService.StoreFile(user, "hello.txt", []byte("Hello, World!"))
+
+// Load file
+content, err := fileService.LoadFile(user, "hello.txt")
+
+// Share file
+invPtr, err := invitationService.CreateInvitation(user, "hello.txt", "bob")
+
+// Accept invitation
+err = invitationService.AcceptInvitation(bobUser, "alice", invPtr, "hello.txt")
+
+// Revoke access
+err = invitationService.RevokeAccess(user, "hello.txt", "bob")
+```
 
 ---
 

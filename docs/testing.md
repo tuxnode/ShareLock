@@ -14,6 +14,7 @@ ShareLock uses [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://
 |-------|---------|------|----------|
 | Encryption Unit Tests | `encryption` | White-box unit | `internal/client/encryption/encryption_unittest.go` |
 | Encryption Integration Tests | `encryption_test` | Black-box integration | `internal/client/encryption_test/encryption_test.go` |
+| Service API Tests | `encryption` | Service API | `internal/client/encryption/example_test.go` |
 | App Client Tests | `app_test` | Black-box integration | `internal/client/app_test/app_test.go` |
 | Netstream Tests | `netstream` | (none yet) | `internal/netstream/netstream.go` |
 | KV Store Unit Tests | `store` | Unit | `internal/server/store/store_test.go` |
@@ -123,7 +124,7 @@ This is the primary integration test suite for the application-layer `app.Client
 
 ## Encryption Integration Tests (`internal/client/encryption_test/encryption_test.go`)
 
-These tests exercise the raw `encryption` package directly without the `app.Client` wrapper. They verify the same cryptographic flows as the app client tests but at a lower level.
+These tests exercise the `encryption` package's Service API directly without the `app.Client` wrapper. They verify the same cryptographic flows as the app client tests but use the `UserService`, `FileService`, and `InvitationService` directly.
 
 ### Test Groups
 
@@ -131,6 +132,32 @@ These tests exercise the raw `encryption` package directly without the `app.Clie
 - **Single User Store/Load/Append** — full CRUD on a single user's file
 - **Create/Accept Invite with Multi-session** — sharing across multiple client instances
 - **Revoke Functionality** — revocation with cascading to sub-sharees
+
+### Writing Tests with Service API
+
+```go
+// Create storage implementations
+storage := client.NewUserlibStorage()
+keyStore := client.NewUserlibKeyStore()
+
+// Create services
+userService := client.NewUserService(storage, keyStore)
+fileService := client.NewFileService(storage, keyStore)
+invitationService := client.NewInvitationService(storage, keyStore)
+
+// Initialize user
+user, err := userService.InitUser("alice", "password")
+Expect(err).To(BeNil())
+
+// Store file
+err = fileService.StoreFile(user, "test.txt", []byte("data"))
+Expect(err).To(BeNil())
+
+// Load file
+data, err := fileService.LoadFile(user, "test.txt")
+Expect(err).To(BeNil())
+Expect(data).To(Equal([]byte("data")))
+```
 
 ---
 

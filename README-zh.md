@@ -55,7 +55,7 @@
 - **文件分块：** 文件被分割为 512 字节的 `FileBlock` 块，每块使用从随机 `FileKey` 派生的文件特定密钥独立加密。
 - **Inode：** 跟踪文件总大小和有序的块 UUID 列表。作为单个数据块在文件密钥下加密和 MAC 保护。
 - **MailboxNode：** 每个用户（所有者或共享者）的指针，包含 `FileKey` 和 `InodeUUID`，使用邮箱特定密钥加密。每个用户拥有自己的 MailboxNode。
-- **访问记录（Access）：** 将文件名映射到所有者的 MailboxNode UUID/密钥，并维护一个共享树（`Chidren` 映射），记录所有直接共享者，用于撤销操作。
+- **访问记录（Access）：** 将文件名映射到所有者的 MailboxNode UUID/密钥，并维护一个共享树（`Children` 映射），记录所有直接共享者，用于撤销操作。
 - **邀请（Invitation）：** 包含 `MailboxUUID` 和 `MailboxKey` 的加密载荷，通过 RSA-OAEP + 数字签名传输以授予访问权限。
 - **用户结构（User Struct）：** 包含用户名、RSA 私钥、DS 签名密钥、Argon2 派生主密钥以及已知文件访问指针的映射。在用户派生密钥下加密后存储在 Datastore 中。
 
@@ -86,7 +86,7 @@ CreateInvitation (创建邀请):
   → 解密自己的 MailboxNode
   → 为接收者创建新的 MailboxNode（相同 FileKey/InodeUUID）
   → 加密邀请 (RSA-OAEP) + 签名 (RSA-PKCS1.5)
-  → 更新发送者的 Access.Chidren
+  → 更新发送者的 Access.Children
 
 AcceptInvitation (接受邀请):
   → 验证签名 + 解密邀请 (RSA-OAEP)
@@ -97,7 +97,7 @@ RevokeAccess (撤销访问):
   → 用新密钥重新加密所有块和 inode
   → 创建所有者的新 MailboxNode
   → 用新 FileKey 更新剩余子节点的 MailboxNode
-  → 从 Chidren 中移除被撤销的用户
+  → 从 Children 中移除被撤销的用户
 ```
 
 ---
@@ -126,6 +126,8 @@ RevokeAccess (撤销访问):
 | `AcceptInvitation` | ✅ 已完成 |
 | `RevokeAccess` | ✅ 已完成 |
 | `ReadFile` (TLS 流式传输) | ✅ 已完成 |
+| Service API (`UserService`, `FileService`, `InvitationService`) | ✅ 已完成 |
+| 存储抽象 (`StorageService`, `KeyStoreService` 接口) | ✅ 已完成 |
 | 命令行 (`cmd/client`) | ✅ 已完成 |
 | Netstream (`internal/netstream`) | ✅ 已完成 |
 | KV 存储服务端 (`cmd/server`) | ✅ 已完成 |
@@ -257,20 +259,23 @@ make vet
 │   │   │   └── config.go        # .hosts 文件管理 (~/.config/sharelock/.hosts)
 │   │   ├── encryption/
 │   │   │   ├── access.go        # 数据结构：MailboxNode, Access, Invitation, ChildrenInfo
-│   │   │   ├── encryption.go    # 核心客户端：User 结构、InitUser、GetUser、StoreFile 等
+│   │   │   ├── encryption.go    # 旧版 API：User 结构、InitUser、GetUser、StoreFile 等
 │   │   │   ├── encryption_unittest.go  # 白盒单元测试 (Ginkgo/Gomega)
+│   │   │   ├── example_test.go  # Service API 使用示例
 │   │   │   ├── File.go          # 文件块分割/合并工具
+│   │   │   ├── memory.go        # 内存存储实现（用于测试）
+│   │   │   ├── service.go       # 服务层：UserService, FileService, InvitationService
 │   │   │   └── utils.go         # 密码学辅助函数：encryptAndMAC、decryptAndVerify、密钥派生
 │   │   ├── app/
 │   │   │   └── app.go           # 应用层客户端业务逻辑
 │   │   └── netstream/
-│   │       └── netstream.go     # TLS 加密文件流式传输 (FileSeander / FileReceiver)
+│   │       └── netstream.go     # TLS 加密文件流式传输 (FileSender / FileReceiver)
 │   ├── client/encryption_test/
-│   │   └── encryption_test.go   # 黑盒集成测试
+│   │   └── encryption_test.go   # 黑盒集成测试 (Service API)
 │   ├── client/app_test/
 │   │   └── app_test.go          # 应用客户端集成测试
 │   ├── netstream/
-│   │   └── netstream.go         # TLS 加密文件流式传输 (FileSeander / FileReceiver)
+│   │   └── netstream.go         # TLS 加密文件流式传输 (FileSender / FileReceiver)
 │   ├── server/
 │   │   ├── server.go            # TLS 监听循环，每个连接一个 goroutine
 │   │   ├── store/
@@ -279,21 +284,6 @@ make vet
 │   │       └── handler.go       # 二进制协议处理 (GET 0x01 / SET 0x02 / DELETE 0x03)
 │   └── integration_test/
 │       └── server_test.go       # 服务端 TLS 集成测试
-├── internal/
-│   ├── client/
-│   │   ├── encryption/
-│   │   │   ├── access.go        # 数据结构：MailboxNode, Access, Invitation, ChildrenInfo
-│   │   │   ├── encryption.go    # 核心客户端：User 结构、InitUser、GetUser、StoreFile 等
-│   │   │   ├── encryption_unittest.go  # 白盒单元测试 (Ginkgo/Gomega)
-│   │   │   ├── File.go          # 文件块分割/合并工具
-│   │   │   └── utils.go         # 密码学辅助函数：encryptAndMAC、decryptAndVerify、密钥派生
-│   │   ├── app/
-│   │   │   └── app.go           # 应用层客户端业务逻辑
-│   │   └── netstream/
-│   │       └── netstream.go     # TLS 加密文件流式传输 (FileSeander / FileReceiver)
-│   ├── client/encryption_test/
-│   │   └── encryption_test.go   # 黑盒集成测试
-│   └── server/                  # (空目录, 占位)
 ├── internal/userlib/            # 密码学库 (Datastore, Keystore, 原语)
 │   ├── userlib.go               # 核心密码学原语 + 网络 KV 存储后端
 │   └── userlib_test.go          # 库测试
@@ -335,6 +325,58 @@ make vet
 | `KeystoreGet(key)` | 从可信公钥存储中检索 |
 | `KeystoreSet(key, value)` | 存储到可信公钥存储 |
 | `DatastoreGetBandwidth()` | 测量存储带宽（测试用） |
+
+---
+
+## Service API
+
+项目提供基于接口分离的 Service API，提升可测试性和灵活性。
+
+### 接口
+
+| 接口 | 方法 | 用途 |
+|------|------|------|
+| `StorageService` | `Get`, `Set`, `Delete` | 抽象存储操作 |
+| `KeyStoreService` | `Get`, `Set` | 抽象公钥存储 |
+
+### 服务
+
+| 服务 | 方法 | 用途 |
+|------|------|------|
+| `UserService` | `InitUser`, `GetUser` | 用户生命周期管理 |
+| `FileService` | `StoreFile`, `LoadFile`, `AppendToFile` | 文件操作 |
+| `InvitationService` | `CreateInvitation`, `AcceptInvitation`, `RevokeAccess` | 共享与撤销 |
+
+### 使用示例
+
+```go
+// 创建存储实现
+storage := encryption.NewUserlibStorage()    // 或 NewMemoryStorage() 用于测试
+keyStore := encryption.NewUserlibKeyStore()  // 或 NewMemoryKeyStore() 用于测试
+
+// 创建服务
+userService := encryption.NewUserService(storage, keyStore)
+fileService := encryption.NewFileService(storage, keyStore)
+invitationService := encryption.NewInvitationService(storage, keyStore)
+
+// 初始化用户
+user, err := userService.InitUser("alice", "password")
+
+// 存储文件
+err = fileService.StoreFile(user, "hello.txt", []byte("Hello, World!"))
+
+// 加载文件
+content, err := fileService.LoadFile(user, "hello.txt")
+
+// 共享文件
+invPtr, err := invitationService.CreateInvitation(user, "hello.txt", "bob")
+
+// 接受邀请
+err = invitationService.AcceptInvitation(bobUser, "alice", invPtr, "hello.txt")
+
+// 撤销访问
+err = invitationService.RevokeAccess(user, "hello.txt", "bob")
+```
 
 ---
 

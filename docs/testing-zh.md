@@ -12,6 +12,7 @@ ShareLock 使用 [Ginkgo v2](https://onsi.github.io/ginkgo/) 和 [Gomega](https:
 |------|-----|------|------|
 | 加密单元测试 | `encryption` | 白盒单元测试 | `internal/client/encryption/encryption_unittest.go` |
 | 加密集成测试 | `encryption_test` | 黑盒集成测试 | `internal/client/encryption_test/encryption_test.go` |
+| Service API 测试 | `encryption` | Service API | `internal/client/encryption/example_test.go` |
 | 应用客户端测试 | `app_test` | 黑盒集成测试 | `internal/client/app_test/app_test.go` |
 | Netstream 测试 | `netstream` | （暂无） | `internal/netstream/netstream.go` |
 | KV 存储单元测试 | `store` | 单元测试 | `internal/server/store/store_test.go` |
@@ -121,7 +122,7 @@ go test ./internal/integration_test/ -bench=Parallel -benchtime=1s
 
 ## 加密集成测试（`internal/client/encryption_test/encryption_test.go`）
 
-这些测试直接操作原始 `encryption` 包，绕过 `app.Client` 包装层。它们验证与客户端测试相同的加密流程，但在更低的层级上。
+这些测试直接操作 `encryption` 包的 Service API，绕过 `app.Client` 包装层。它们验证与客户端测试相同的加密流程，但使用 `UserService`、`FileService` 和 `InvitationService` 直接操作。
 
 ### 测试分组
 
@@ -129,6 +130,32 @@ go test ./internal/integration_test/ -bench=Parallel -benchtime=1s
 - **单用户存储/加载/追加** — 单用户文件的完整增删改查
 - **创建/接受邀请与多会话** — 跨多个客户端实例的共享
 - **撤销功能** — 撤销操作及其对子共享者的级联效果
+
+### 使用 Service API 编写测试
+
+```go
+// 创建存储实现
+storage := client.NewUserlibStorage()
+keyStore := client.NewUserlibKeyStore()
+
+// 创建服务
+userService := client.NewUserService(storage, keyStore)
+fileService := client.NewFileService(storage, keyStore)
+invitationService := client.NewInvitationService(storage, keyStore)
+
+// 初始化用户
+user, err := userService.InitUser("alice", "password")
+Expect(err).To(BeNil())
+
+// 存储文件
+err = fileService.StoreFile(user, "test.txt", []byte("data"))
+Expect(err).To(BeNil())
+
+// 加载文件
+data, err := fileService.LoadFile(user, "test.txt")
+Expect(err).To(BeNil())
+Expect(data).To(Equal([]byte("data")))
+```
 
 ---
 
