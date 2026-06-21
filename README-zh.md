@@ -160,6 +160,40 @@ make test
 make help
 ```
 
+### 快速演示
+
+一个完整的端到端操作流程：
+
+```bash
+# 1. 构建并启动服务端
+make build
+./sharelock-server -tls=false -address :8080 -dir ./data &
+
+# 2. 创建两个用户
+./sharelock init -u alice -p pass123
+./sharelock init -u bob   -p pass456
+
+# 3. Alice 存储一个文件
+echo "Hello from Alice!" > hello.txt
+./sharelock store -f hello.txt
+
+# 4. Alice 加载文件
+./sharelock load -f hello.txt
+
+# 5. Alice 将文件分享给 Bob，获得邀请 UUID
+invite=$(./sharelock share -f hello.txt -r bob)
+echo "Invitation: $invite"
+
+# 6. Bob 接受邀请
+./sharelock accept -s alice -i "$invite" -f shared.txt
+
+# 7. Bob 加载共享文件
+./sharelock load -f shared.txt
+
+# 8. Alice 撤销 Bob 的访问权限
+./sharelock revoke -f hello.txt -r bob
+```
+
 ### 运行测试
 
 项目使用 [Ginkgo v2](https://onsi.github.io/ginkgo/) 和 [Gomega](https://onsi.github.io/gomega/) 进行测试。详细文档请参阅[测试说明文档](./docs/testing-zh.md)，包含[基准测试](./docs/testing-zh.md#性能基准测试)。

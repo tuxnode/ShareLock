@@ -160,6 +160,40 @@ make test
 make help
 ```
 
+### Quick Demo
+
+A complete end-to-end walkthrough in one terminal session:
+
+```bash
+# 1. Build and start the server
+make build
+./sharelock-server -tls=false -address :8080 -dir ./data &
+
+# 2. Create two users
+./sharelock init -u alice -p pass123
+./sharelock init -u bob   -p pass456
+
+# 3. Alice stores a file
+echo "Hello from Alice!" > hello.txt
+./sharelock store -f hello.txt
+
+# 4. Alice loads it back
+./sharelock load -f hello.txt
+
+# 5. Alice shares the file with Bob, gets an invitation UUID
+invite=$(./sharelock share -f hello.txt -r bob)
+echo "Invitation: $invite"
+
+# 6. Bob accepts the invitation
+./sharelock accept -s alice -i "$invite" -f shared.txt
+
+# 7. Bob loads the shared file
+./sharelock load -f shared.txt
+
+# 8. Alice revokes Bob's access
+./sharelock revoke -f hello.txt -r bob
+```
+
 ### Running Tests
 
 The project uses [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/) for testing. See the [Testing Guide](./docs/testing.md) for detailed documentation, including [benchmarks](./docs/testing.md#benchmarks).
