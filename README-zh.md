@@ -198,7 +198,7 @@ make test-userlib      # userlib 测试
 ./sharelock host add dev localhost:8080 --tls=false
 
 # 通过环境变量选择主机
-SHARELOCK_HOST=dev ./sharelock store -f hello.txt -c "data"
+SHARELOCK_HOST=dev ./sharelock store -f ./hello.txt
 
 # 列出已配置的主机
 ./sharelock host list
@@ -213,8 +213,9 @@ make build
 # 创建账户
 ./sharelock init -u alice -p secret
 
-# 存储文件
-./sharelock store -f hello.txt -c "Hello, World!"
+# 存储文件（从磁盘读取内容）
+echo "Hello, World!" > hello.txt
+./sharelock store -f hello.txt
 
 # 加载文件
 ./sharelock load -f hello.txt

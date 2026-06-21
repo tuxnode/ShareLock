@@ -198,7 +198,7 @@ Only one file is loaded — higher priority paths are checked first.
 ./sharelock host add dev localhost:8080 --tls=false
 
 # Select host via environment variable
-SHARELOCK_HOST=dev ./sharelock store -f hello.txt -c "data"
+SHARELOCK_HOST=dev ./sharelock store -f ./hello.txt
 
 # List configured hosts
 ./sharelock host list
@@ -213,8 +213,9 @@ make build
 # Create account
 ./sharelock init -u alice -p secret
 
-# Store a file
-./sharelock store -f hello.txt -c "Hello, World!"
+# Store a file from disk
+echo "Hello, World!" > hello.txt
+./sharelock store -f hello.txt
 
 # Load a file
 ./sharelock load -f hello.txt

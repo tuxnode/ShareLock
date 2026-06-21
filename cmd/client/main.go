@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -146,23 +147,30 @@ func cmdLogin(cli *app.Client, args []string) {
 
 func cmdStore(cli *app.Client, args []string) {
 	fs := flag.NewFlagSet("store", flag.ExitOnError)
-	filename := fs.String("f", "", "filename")
-	content := fs.String("c", "", "content")
+	filepathFlag := fs.String("f", "", "local file path")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: sharelock store -f <filename> -c <content>")
-		fmt.Fprintln(os.Stderr, "\nStore a file (overwrites if exists).")
+		fmt.Fprintln(os.Stderr, "Usage: sharelock store -f <filepath>")
+		fmt.Fprintln(os.Stderr, "\nStore a file by reading its content from disk (overwrites if exists).")
 		fmt.Fprintln(os.Stderr, "\nFlags:")
 		fs.PrintDefaults()
 	}
 	fs.Parse(args)
 
-	if *filename == "" {
-		fmt.Fprintln(os.Stderr, "Error: filename is required")
+	if *filepathFlag == "" {
+		fmt.Fprintln(os.Stderr, "Error: file path is required")
 		fs.Usage()
 		os.Exit(1)
 	}
 
-	if err := cli.StoreFile(*filename, []byte(*content)); err != nil {
+	content, err := os.ReadFile(*filepathFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: cannot read file '%s': %v\n", *filepathFlag, err)
+		os.Exit(1)
+	}
+
+	filename := filepath.Base(*filepathFlag)
+
+	if err := cli.StoreFile(filename, content); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -495,7 +503,7 @@ Commands:
 
 	sb.WriteString(align("init", "Create a new user account") + "\n")
 	sb.WriteString(align("login", "Login as existing user") + "\n")
-	sb.WriteString(align("store", "Store a file (overwrites if exists)") + "\n")
+	sb.WriteString(align("store", "Store a file from disk (overwrites if exists)") + "\n")
 	sb.WriteString(align("load", "Load and print file contents") + "\n")
 	sb.WriteString(align("append", "Append content to a file") + "\n")
 	sb.WriteString(align("share", "Share a file with another user") + "\n")
@@ -521,8 +529,8 @@ Quick Examples:
   # Create account
   sharelock init -u alice -p secret
 
-  # Store a file
-  sharelock store -f hello.txt -c "Hello, World!"
+  # Store a file from disk
+  sharelock store -f ./hello.txt
 
   # Load a file
   sharelock load -f hello.txt
