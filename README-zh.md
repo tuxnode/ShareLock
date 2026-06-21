@@ -238,13 +238,53 @@ invite=$(./sharelock share -f hello.txt -r bob)
 # 显示帮助
 ./sharelock help
 ./sharelock init --help
+```
 
-# 运行 KV 存储服务端（make all 已生成证书）
+### 服务端
+
+KV 存储服务端（`sharelock-server`）是一个独立的二进制文件，为客户端提供加密的键值存储服务。使用 BadgerDB 进行持久化存储，支持 TLS 加密和明文 TCP 连接。
+
+#### 启动参数
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `-address` | `localhost:8080` | 监听地址（`host:port`） |
+| `-dir` | `./data` | BadgerDB 数据目录 |
+| `-cert` | — | TLS 证书文件（`-tls=true` 时必填） |
+| `-key` | — | TLS 私钥文件（`-tls=true` 时必填） |
+| `-tls` | `true` | 启用 TLS 加密 |
+
+#### 启动服务端
+
+```bash
+# 生成开发用 TLS 证书（如尚未生成）
+make gen-cert
+
+# TLS 模式启动（生产环境）
 ./sharelock-server -address :8080 -dir ./data -cert cert.pem -key key.pem
 
-# 明文 TCP 模式（开发用，无需证书）
+# 明文 TCP 模式启动（开发环境）
 ./sharelock-server -tls=false -address :8080 -dir ./data
+
+# 自定义地址和数据目录
+./sharelock-server -address 0.0.0.0:9090 -dir /var/lib/sharelock
 ```
+
+#### 二进制协议
+
+服务端实现了一套轻量级二进制协议，运行在 TCP/TLS 之上：
+
+| 操作码 | 操作 | 格式 |
+|--------|------|------|
+| `0x01` | GET | `[op:1][keyLen:4][key]` → `[status:1][valLen:4][val]` |
+| `0x02` | SET | `[op:1][keyLen:4][key][valLen:4][val]` → `[status:1]` |
+| `0x03` | DELETE | `[op:1][keyLen:4][key]` → `[status:1]` |
+
+状态码：`0x00` 成功，`0x01` 未找到，`0x02` 错误。
+
+#### 数据存储
+
+所有数据通过 BadgerDB 持久化存储在 `-dir` 指定的目录中。服务端将所有值视为不透明字节流 — 所有加密操作均在客户端执行（零知识服务器）。
 
 ### 代码检查
 
