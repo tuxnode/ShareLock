@@ -382,6 +382,18 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 	return nil
 }
 
+// ListFiles returns a list of filenames the user has access to
+func (s *FileService) ListFiles(userdata *User) []string {
+	if userdata.Files == nil {
+		return []string{}
+	}
+	files := make([]string, 0, len(userdata.Files))
+	for filename := range userdata.Files {
+		files = append(files, filename)
+	}
+	return files
+}
+
 // InvitationService handles sharing operations
 type InvitationService struct {
 	storage  StorageService

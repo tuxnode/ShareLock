@@ -77,6 +77,8 @@ func main() {
 		cmdAccept(cli, os.Args[2:])
 	case "revoke":
 		cmdRevoke(cli, os.Args[2:])
+	case "list":
+		cmdList(cli, os.Args[2:])
 	case "read":
 		cmdRead(cli, os.Args[2:])
 
@@ -310,6 +312,17 @@ func cmdRevoke(cli *app.Client, args []string) {
 	fmt.Println("ok")
 }
 
+func cmdList(cli *app.Client, args []string) {
+	files := cli.ListFiles()
+	if len(files) == 0 {
+		fmt.Println("No files stored.")
+		return
+	}
+	for _, f := range files {
+		fmt.Println(f)
+	}
+}
+
 func cmdRead(cli *app.Client, args []string) {
 	fs := flag.NewFlagSet("read", flag.ExitOnError)
 	filename := fs.String("f", "", "filename")
@@ -509,6 +522,7 @@ Commands:
 	sb.WriteString(align("share", "Share a file with another user") + "\n")
 	sb.WriteString(align("accept", "Accept a file sharing invitation") + "\n")
 	sb.WriteString(align("revoke", "Revoke a user's access") + "\n")
+	sb.WriteString(align("list", "List all stored files") + "\n")
 	sb.WriteString(align("read", "Read file via TLS streaming") + "\n")
 	sb.WriteString(align("host", "Manage server connections") + "\n")
 	sb.WriteString(align("version", "Show version") + "\n")

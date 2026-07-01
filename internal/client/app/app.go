@@ -79,6 +79,10 @@ func (c *Client) RevokeAccess(filename string, recipientUsername string) error {
 	return c.invitationService.RevokeAccess(c.user, filename, recipientUsername)
 }
 
+func (c *Client) ListFiles() []string {
+	return c.fileService.ListFiles(c.user)
+}
+
 func (c *Client) ReadFile(filename string, address string) error {
 	return c.ReadFileTLS(filename, address, true)
 }

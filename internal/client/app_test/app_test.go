@@ -345,4 +345,38 @@ var _ = Describe("App Client", func() {
 			Expect(data).To(Equal([]byte(contentOne + contentTwo)))
 		})
 	})
+
+	Describe("ListFiles", func() {
+
+		BeforeEach(func() {
+			alice = &app.Client{}
+			err = alice.InitUser("alice", password)
+			Expect(err).To(BeNil())
+		})
+
+		It("should list stored files", func() {
+			err = alice.StoreFile(aliceFile, []byte(contentOne))
+			Expect(err).To(BeNil())
+
+			files := alice.ListFiles()
+			Expect(files).To(ContainElement(aliceFile))
+		})
+
+		It("should return empty list for new user", func() {
+			files := alice.ListFiles()
+			Expect(files).To(BeEmpty())
+		})
+
+		It("should list multiple files", func() {
+			err = alice.StoreFile(aliceFile, []byte(contentOne))
+			Expect(err).To(BeNil())
+			err = alice.StoreFile(bobFile, []byte(contentTwo))
+			Expect(err).To(BeNil())
+
+			files := alice.ListFiles()
+			Expect(files).To(HaveLen(2))
+			Expect(files).To(ContainElement(aliceFile))
+			Expect(files).To(ContainElement(bobFile))
+		})
+	})
 })
