@@ -44,7 +44,7 @@ func (s *UserService) InitUser(username string, password string) (*User, error) 
 	}
 
 	if _, ok := s.storage.Get(userUUID); ok {
-		return nil, errors.New("user already exists")
+		return nil, fmt.Errorf("user '%s' already exists", username)
 	}
 
 	salt := userlib.Hash([]byte(username))
@@ -116,7 +116,7 @@ func (s *UserService) GetUser(username string, password string) (*User, error) {
 
 	payload, ok := s.storage.Get(userUUID)
 	if !ok {
-		return nil, errors.New("user not found")
+		return nil, fmt.Errorf("user '%s' not found", username)
 	}
 
 	plaintext, err := decryptAndVerify(payload, encKey, macKey)
@@ -237,7 +237,7 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 
 	accessPayload, ok := s.storage.Get(accessUUID)
 	if !ok {
-		return nil, errors.New("file not found")
+		return nil, fmt.Errorf("file '%s' not found for user '%s'", filename, userdata.Username)
 	}
 
 	pEncKey, pMacKey := getPersonalKey(userdata.MasterKey, filename)
@@ -253,7 +253,7 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 
 	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
 	if !ok {
-		return nil, errors.New("mailbox not found")
+		return nil, fmt.Errorf("mailbox not found for file '%s' (data may be corrupted)", filename)
 	}
 	mEncKey, mMacKey := getMailKeys(access.MymailboxKey)
 	mailboxBytes, err := decryptAndVerify(mailboxPayload, mEncKey, mMacKey)
@@ -268,7 +268,7 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 
 	inodePayload, ok := s.storage.Get(myMailbox.InodeUUID)
 	if !ok {
-		return nil, errors.New("inode not found")
+		return nil, fmt.Errorf("inode not found for file '%s' (data may be corrupted)", filename)
 	}
 	fEncKey, fMacKey := getFileKeys(myMailbox.FileKey)
 	inodeBytes, err := decryptAndVerify(inodePayload, fEncKey, fMacKey)
@@ -285,7 +285,7 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 	for _, blockUUID := range inode.BlockUUIDs {
 		blockPayload, ok := s.storage.Get(blockUUID)
 		if !ok {
-			return nil, errors.New("block not found")
+			return nil, fmt.Errorf("data block not found for file '%s' (data may be corrupted)", filename)
 		}
 
 		blockPlaintext, err := decryptAndVerify(blockPayload, fEncKey, fMacKey)
@@ -301,7 +301,7 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 // AppendToFile appends content to an existing file
 func (s *FileService) AppendToFile(userdata *User, filename string, content []byte) error {
 	if content == nil {
-		return errors.New("invalid argument")
+		return errors.New("content cannot be nil")
 	}
 
 	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
@@ -310,7 +310,7 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 	}
 	accessPayload, ok := s.storage.Get(accessUUID)
 	if !ok {
-		return errors.New("file not found: cannot append")
+		return fmt.Errorf("file '%s' not found (cannot append)", filename)
 	}
 
 	pEncKey, pMacKey := getPersonalKey(userdata.MasterKey, filename)
@@ -326,7 +326,7 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 
 	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
 	if !ok {
-		return errors.New("file not found: cannot append")
+		return fmt.Errorf("mailbox not found for file '%s' (cannot append)", filename)
 	}
 	mEncKey, mMacKey := getMailKeys(access.MymailboxKey)
 	mailboxBytes, err := decryptAndVerify(mailboxPayload, mEncKey, mMacKey)
@@ -341,7 +341,7 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 
 	inodePayload, ok := s.storage.Get(myMailbox.InodeUUID)
 	if !ok {
-		return errors.New("file not found: cannot append")
+		return fmt.Errorf("inode not found for file '%s' (cannot append)", filename)
 	}
 
 	fEncKey, fMacKey := getFileKeys(myMailbox.FileKey)
@@ -416,7 +416,7 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 
 	accessPayload, ok := s.storage.Get(accessUUID)
 	if !ok {
-		return uuid.Nil, errors.New("file not found")
+		return uuid.Nil, fmt.Errorf("file '%s' not found for user '%s'", filename, userdata.Username)
 	}
 	pEncKey, pMacKey := getPersonalKey(userdata.MasterKey, filename)
 	accessBytes, err := decryptAndVerify(accessPayload, pEncKey, pMacKey)
@@ -431,7 +431,7 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 
 	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
 	if !ok {
-		return uuid.Nil, errors.New("mailbox not found")
+		return uuid.Nil, fmt.Errorf("mailbox not found for file '%s'", filename)
 	}
 	mEncKey, mMacKey := getMailKeys(access.MymailboxKey)
 	mailboxBytes, err := decryptAndVerify(mailboxPayload, mEncKey, mMacKey)
@@ -463,7 +463,7 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 
 	recipientPubkey, ok := s.keyStore.Get(recipientUsername + "_enc_pub")
 	if !ok {
-		return uuid.Nil, errors.New("recipient user does not exist")
+		return uuid.Nil, fmt.Errorf("recipient user '%s' does not exist", recipientUsername)
 	}
 
 	invitation := Invitation{
@@ -510,11 +510,11 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 func (s *InvitationService) AcceptInvitation(userdata *User, senderUsername string, invitationPtr uuid.UUID, filename string) error {
 	invitationPayload, ok := s.storage.Get(invitationPtr)
 	if !ok {
-		return errors.New("invitation not found")
+		return fmt.Errorf("invitation %s not found", invitationPtr.String())
 	}
 
 	if len(invitationPayload) < 256 {
-		return errors.New("invitation payload too short")
+		return errors.New("invitation payload too short (expected at least 256 bytes for signature)")
 	}
 	sigOffset := len(invitationPayload) - 256
 	ciphertext := invitationPayload[:sigOffset]
@@ -522,10 +522,10 @@ func (s *InvitationService) AcceptInvitation(userdata *User, senderUsername stri
 
 	senderVerifyKey, ok := s.keyStore.Get(senderUsername + "_sig_pub")
 	if !ok {
-		return errors.New("sender public key not found")
+		return fmt.Errorf("sender '%s' public key not found in keystore", senderUsername)
 	}
 	if err := userlib.DSVerify(senderVerifyKey.(userlib.DSVerifyKey), ciphertext, signature); err != nil {
-		return errors.New("signature verification failed")
+		return fmt.Errorf("invitation signature verification failed for sender '%s'", senderUsername)
 	}
 
 	plaintext, err := userlib.PKEDec(userdata.PKEPrivateKey, ciphertext)
@@ -570,7 +570,7 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 	}
 	accessPayload, ok := s.storage.Get(accessUUID)
 	if !ok {
-		return errors.New("file not found")
+		return fmt.Errorf("file '%s' not found for user '%s'", filename, userdata.Username)
 	}
 	pEncKey, pMacKey := getPersonalKey(userdata.MasterKey, filename)
 	accessBytes, err := decryptAndVerify(accessPayload, pEncKey, pMacKey)
@@ -585,7 +585,7 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 
 	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
 	if !ok {
-		return errors.New("mailbox not found")
+		return fmt.Errorf("mailbox not found for file '%s'", filename)
 	}
 	mEncKey, mMacKey := getMailKeys(access.MymailboxKey)
 	mailboxBytes, err := decryptAndVerify(mailboxPayload, mEncKey, mMacKey)
@@ -603,7 +603,7 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 
 	inodePayload, ok := s.storage.Get(myMailbox.InodeUUID)
 	if !ok {
-		return errors.New("inode not found")
+		return fmt.Errorf("inode not found for file '%s'", filename)
 	}
 	oldFEncKey, oldFMacKey := getFileKeys(myMailbox.FileKey)
 	inodeBytes, err := decryptAndVerify(inodePayload, oldFEncKey, oldFMacKey)
@@ -619,7 +619,7 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 	for _, blockUUID := range inode.BlockUUIDs {
 		blockPayload, ok := s.storage.Get(blockUUID)
 		if !ok {
-			return errors.New("block not found")
+			return fmt.Errorf("data block not found for file '%s'", filename)
 		}
 		blockPlaintext, err := decryptAndVerify(blockPayload, oldFEncKey, oldFMacKey)
 		if err != nil {
