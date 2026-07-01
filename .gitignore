@@ -198,3 +198,6 @@ sharelock-server
 # Generated certificates
 cert.pem
 key.pem
+
+# Agent
+.mimocode/
