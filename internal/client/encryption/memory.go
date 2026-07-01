@@ -81,19 +81,37 @@ func (u *UserlibStorage) Delete(key userlib.UUID) {
 	userlib.DatastoreDelete(key)
 }
 
-// UserlibKeyStore adapts userlib.KeystoreGet/Set to KeyStoreService interface
-type UserlibKeyStore struct{}
+// UserlibKeyStore adapts userlib.KeystoreGet/Set to KeyStoreService interface.
+// Each instance maintains a local cache and falls through to the global
+// userlib keystore (which shards by Ginkgo spec line). This prevents
+// cross-test key contamination when multiple tests call InitUser for
+// the same username without clearing the global keystore.
+type UserlibKeyStore struct {
+	mu    sync.RWMutex
+	local map[string]userlib.PublicKeyType
+}
 
 func NewUserlibKeyStore() *UserlibKeyStore {
-	return &UserlibKeyStore{}
+	return &UserlibKeyStore{
+		local: make(map[string]userlib.PublicKeyType),
+	}
 }
 
 func (u *UserlibKeyStore) Get(key string) (interface{}, bool) {
+	u.mu.RLock()
+	if v, ok := u.local[key]; ok {
+		u.mu.RUnlock()
+		return v, true
+	}
+	u.mu.RUnlock()
 	return userlib.KeystoreGet(key)
 }
 
 func (u *UserlibKeyStore) Set(key string, value interface{}) {
 	if pk, ok := value.(userlib.PublicKeyType); ok {
+		u.mu.Lock()
+		u.local[key] = pk
+		u.mu.Unlock()
 		userlib.KeystoreSet(key, pk)
 	}
 }
