@@ -26,6 +26,13 @@ make test-userlib            # internal/userlib/
 
 Focused verify: `go test -v -count=1 ./internal/client/encryption/`
 
+## Debugging workflow
+
+1. **Isolate** — Write a focused test that exercises the failing path end-to-end
+2. **Compare implementations** — If `MemoryKeyStore` passes but `UserlibKeyStore` fails, the bug is in the adapter layer (`memory.go`), not the business logic (`service.go`)
+3. **Check silent error drops** — `UserlibKeyStore.Set` had no error handling; wrap calls to `userlib.Keystore*` with proper guard
+4. **Verify with per-instance state** — When tests share global state (Ginkgo spec shards), give each instance its own cache to avoid cross-test contamination
+
 ## Run
 
 ```bash
@@ -71,3 +78,4 @@ SHARELOCK_HOST=dev ./sharelock store -f hello.txt             # select host
 - Session cached to disk (cleared via `sharelock logout`)
 - Integration tests (app_test, encryption_test) use Ginkgo/Gomega; unit tests (encryption/*) use standard `testing` package
 - `UserlibKeyStore` caches keys per-instance + falls through to global `userlib.Keystore*`. In tests, isolate with `userlib.KeystoreClear()` or use `MemoryKeyStore` to avoid cross-test key contamination.
+- The in-memory `userlib.KeystoreSet` rejects duplicate keys (server allows overwrites). `UserlibKeyStore.Set` was silently dropping this error, causing new `InitUser` calls to keep stale keys from previous tests.
