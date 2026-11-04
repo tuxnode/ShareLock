@@ -1,31 +1,18 @@
 package encryption
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
 
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 	"github.com/google/uuid"
 )
 
-// StorageService abstracts storage operations for testability and flexibility
-type StorageService interface {
-	Get(key userlib.UUID) ([]byte, bool)
-	Set(key userlib.UUID, value []byte)
-	Delete(key userlib.UUID)
-}
-
-// KeyStoreService abstracts public key storage
-type KeyStoreService interface {
-	Get(key string) (interface{}, bool)
-	Set(key string, value interface{})
-}
-
 // UserService handles user lifecycle operations
 type UserService struct {
-	storage   StorageService
-	keyStore  KeyStoreService
+	storage  StorageService
+	keyStore KeyStoreService
 }
 
 func NewUserService(storage StorageService, keyStore KeyStoreService) *UserService {
@@ -37,89 +24,78 @@ func NewUserService(storage StorageService, keyStore KeyStoreService) *UserServi
 
 // InitUser creates a new user with cryptographic keys
 func (s *UserService) InitUser(username string, password string) (*User, error) {
-	hash := userlib.Hash([]byte(username + "userStruct"))
-	userUUID, err := uuid.FromBytes(hash[:16])
+	userUUID, err := userID(username)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate user UUID: %w", err)
 	}
 
-	if _, ok := s.storage.Get(userUUID); ok {
+	_, exists, err := s.storage.Get(userUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing user: %w", err)
+	}
+	if exists {
 		return nil, fmt.Errorf("user '%s' already exists", username)
 	}
 
-	salt := userlib.Hash([]byte(username))
-	masterKey := userlib.Argon2Key([]byte(password), salt, userlib.AESKeySizeBytes)
-
-	encKey, err := userlib.HashKDF(masterKey, []byte("enc"))
+	salt, err := randomBytes(passwordSaltSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive encryption key: %w", err)
+		return nil, fmt.Errorf("failed to generate password salt: %w", err)
 	}
-	macKey, err := userlib.HashKDF(masterKey, []byte("mac"))
+	masterKey := deriveMasterKey([]byte(password), salt)
+	encryptionPublicKey, encryptionPrivateKey, err := generateEncryptionKeyPair()
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive MAC key: %w", err)
+		return nil, fmt.Errorf("failed to generate encryption keys: %w", err)
 	}
-
-	pkeEncKey, pkeDecKey, err := userlib.PKEKeyGen()
+	signingPublicKey, signingPrivateKey, err := generateSigningKeyPair()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate PKE keys: %w", err)
+		return nil, fmt.Errorf("failed to generate signing keys: %w", err)
 	}
 
-	dsSignKey, dsVerifyKey, err := userlib.DSKeyGen()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate DS keys: %w", err)
+	if err := s.keyStore.Set(username+"_enc_pub", encryptionPublicKey); err != nil {
+		return nil, fmt.Errorf("failed to store encryption public key: %w", err)
 	}
-
-	s.keyStore.Set(username+"_enc_pub", pkeEncKey)
-	s.keyStore.Set(username+"_sig_pub", dsVerifyKey)
+	if err := s.keyStore.Set(username+"_sig_pub", signingPublicKey); err != nil {
+		return nil, fmt.Errorf("failed to store signing public key: %w", err)
+	}
 
 	userdata := &User{
-		Username:      username,
-		PKEPrivateKey: pkeDecKey,
-		DSSignKey:     dsSignKey,
-		MasterKey:     masterKey,
-		Files:         make(map[string]userlib.UUID),
+		Username:             username,
+		EncryptionPrivateKey: encryptionPrivateKey,
+		SigningPrivateKey:    signingPrivateKey,
+		MasterKey:            masterKey,
+		PasswordSalt:         salt,
+		Files:                make(map[string]uuid.UUID),
 	}
 
-	userBytes, err := json.Marshal(userdata)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal user: %w", err)
+	if err := saveUser(s.storage, userdata); err != nil {
+		return nil, fmt.Errorf("failed to save user data: %w", err)
 	}
-
-	payload, err := encryptAndMAC(userBytes, encKey, macKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt user data: %w", err)
-	}
-
-	s.storage.Set(userUUID, payload)
 	return userdata, nil
 }
 
 // GetUser retrieves and decrypts a user
 func (s *UserService) GetUser(username string, password string) (*User, error) {
-	salt := userlib.Hash([]byte(username))
-	masterKey := userlib.Argon2Key([]byte(password), salt, userlib.AESKeySizeBytes)
-
-	encKey, err := userlib.HashKDF(masterKey, []byte("enc"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive encryption key: %w", err)
-	}
-	macKey, err := userlib.HashKDF(masterKey, []byte("mac"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive MAC key: %w", err)
-	}
-
-	hash := userlib.Hash([]byte(username + "userStruct"))
-	userUUID, err := uuid.FromBytes(hash[:16])
+	userUUID, err := userID(username)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate user UUID: %w", err)
 	}
 
-	payload, ok := s.storage.Get(userUUID)
+	payload, ok, err := s.storage.Get(userUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user '%s': %w", username, err)
+	}
 	if !ok {
 		return nil, fmt.Errorf("user '%s' not found", username)
 	}
 
-	plaintext, err := decryptAndVerify(payload, encKey, macKey)
+	if len(payload) < passwordSaltSize {
+		return nil, errors.New("malformed user record: password salt is missing")
+	}
+	salt := payload[:passwordSaltSize]
+	masterKey := deriveMasterKey([]byte(password), salt)
+	encKey := deriveKey(masterKey, nil, []byte("sharelock/user/encryption"))
+	macKey := deriveKey(masterKey, nil, []byte("sharelock/user/authentication"))
+	plaintext, err := decryptAndVerify(payload[passwordSaltSize:], encKey, macKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt user data: %w", err)
 	}
@@ -128,6 +104,10 @@ func (s *UserService) GetUser(username string, password string) (*User, error) {
 	if err := json.Unmarshal(plaintext, &userdata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal user: %w", err)
 	}
+	if userdata.Username != username {
+		return nil, errors.New("decrypted user data does not match requested username")
+	}
+	userdata.PasswordSalt = append([]byte(nil), salt...)
 
 	return &userdata, nil
 }
@@ -148,10 +128,13 @@ func NewFileService(storage StorageService, keyStore KeyStoreService) *FileServi
 // StoreFile encrypts and stores a file
 func (s *FileService) StoreFile(userdata *User, filename string, content []byte) error {
 	if userdata.Files == nil {
-		userdata.Files = make(map[string]userlib.UUID)
+		userdata.Files = make(map[string]uuid.UUID)
 	}
 
-	fileKey := userlib.RandomBytes(16)
+	fileKey, err := randomBytes(masterKeySize)
+	if err != nil {
+		return fmt.Errorf("failed to generate file key: %w", err)
+	}
 	inodeUUID := uuid.New()
 
 	mailboxnode := MailboxNode{
@@ -164,13 +147,18 @@ func (s *FileService) StoreFile(userdata *User, filename string, content []byte)
 	}
 
 	mailboxUUID := uuid.New()
-	mailboxKey := userlib.RandomBytes(16)
+	mailboxKey, err := randomBytes(masterKeySize)
+	if err != nil {
+		return fmt.Errorf("failed to generate mailbox key: %w", err)
+	}
 	mEncKey, mMacKey := getMailKeys(mailboxKey)
 	mailboxPayload, err := encryptAndMAC(mailboxBytes, mEncKey, mMacKey)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt mailbox: %w", err)
 	}
-	s.storage.Set(mailboxUUID, mailboxPayload)
+	if err := s.storage.Set(mailboxUUID, mailboxPayload); err != nil {
+		return fmt.Errorf("failed to store mailbox: %w", err)
+	}
 
 	access := Access{
 		MymailboxUUID: mailboxUUID,
@@ -188,18 +176,20 @@ func (s *FileService) StoreFile(userdata *User, filename string, content []byte)
 		return fmt.Errorf("failed to encrypt access: %w", err)
 	}
 
-	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	accessUUID, err := accessID(userdata.Username, filename)
 	if err != nil {
 		return fmt.Errorf("failed to generate access UUID: %w", err)
 	}
-	s.storage.Set(accessUUID, accessPayload)
+	if err := s.storage.Set(accessUUID, accessPayload); err != nil {
+		return fmt.Errorf("failed to store access metadata: %w", err)
+	}
 
 	fEncKey, fMacKey := getFileKeys(fileKey)
 	blocks := ByteToBlock(content)
 
 	inode := Inode{
 		Size:       len(content),
-		BlockUUIDs: make([]userlib.UUID, 0, blocks.Len()),
+		BlockUUIDs: make([]uuid.UUID, 0, blocks.Len()),
 	}
 
 	for e := blocks.Front(); e != nil; e = e.Next() {
@@ -210,7 +200,9 @@ func (s *FileService) StoreFile(userdata *User, filename string, content []byte)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt block: %w", err)
 		}
-		s.storage.Set(blockUUID, blockPayload)
+		if err := s.storage.Set(blockUUID, blockPayload); err != nil {
+			return fmt.Errorf("failed to store data block: %w", err)
+		}
 		inode.BlockUUIDs = append(inode.BlockUUIDs, blockUUID)
 	}
 
@@ -222,7 +214,9 @@ func (s *FileService) StoreFile(userdata *User, filename string, content []byte)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt inode: %w", err)
 	}
-	s.storage.Set(inodeUUID, inodePayload)
+	if err := s.storage.Set(inodeUUID, inodePayload); err != nil {
+		return fmt.Errorf("failed to store inode: %w", err)
+	}
 
 	userdata.Files[filename] = accessUUID
 	return saveUser(s.storage, userdata)
@@ -230,12 +224,15 @@ func (s *FileService) StoreFile(userdata *User, filename string, content []byte)
 
 // LoadFile decrypts and loads a file
 func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) {
-	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	accessUUID, err := accessID(userdata.Username, filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access UUID: %w", err)
 	}
 
-	accessPayload, ok := s.storage.Get(accessUUID)
+	accessPayload, ok, err := s.storage.Get(accessUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load access metadata: %w", err)
+	}
 	if !ok {
 		return nil, fmt.Errorf("file '%s' not found for user '%s'", filename, userdata.Username)
 	}
@@ -251,7 +248,10 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 		return nil, fmt.Errorf("failed to unmarshal access: %w", err)
 	}
 
-	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
+	mailboxPayload, ok, err := s.storage.Get(access.MymailboxUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load mailbox: %w", err)
+	}
 	if !ok {
 		return nil, fmt.Errorf("mailbox not found for file '%s' (data may be corrupted)", filename)
 	}
@@ -266,7 +266,10 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 		return nil, fmt.Errorf("failed to unmarshal mailbox: %w", err)
 	}
 
-	inodePayload, ok := s.storage.Get(myMailbox.InodeUUID)
+	inodePayload, ok, err := s.storage.Get(myMailbox.InodeUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load inode: %w", err)
+	}
 	if !ok {
 		return nil, fmt.Errorf("inode not found for file '%s' (data may be corrupted)", filename)
 	}
@@ -283,7 +286,10 @@ func (s *FileService) LoadFile(userdata *User, filename string) ([]byte, error) 
 
 	var data []byte
 	for _, blockUUID := range inode.BlockUUIDs {
-		blockPayload, ok := s.storage.Get(blockUUID)
+		blockPayload, ok, err := s.storage.Get(blockUUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load data block: %w", err)
+		}
 		if !ok {
 			return nil, fmt.Errorf("data block not found for file '%s' (data may be corrupted)", filename)
 		}
@@ -304,11 +310,14 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 		return errors.New("content cannot be nil")
 	}
 
-	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	accessUUID, err := accessID(userdata.Username, filename)
 	if err != nil {
 		return fmt.Errorf("failed to generate access UUID: %w", err)
 	}
-	accessPayload, ok := s.storage.Get(accessUUID)
+	accessPayload, ok, err := s.storage.Get(accessUUID)
+	if err != nil {
+		return fmt.Errorf("failed to load access metadata: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("file '%s' not found (cannot append)", filename)
 	}
@@ -324,7 +333,10 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 		return err
 	}
 
-	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
+	mailboxPayload, ok, err := s.storage.Get(access.MymailboxUUID)
+	if err != nil {
+		return fmt.Errorf("failed to load mailbox: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("mailbox not found for file '%s' (cannot append)", filename)
 	}
@@ -339,7 +351,10 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 		return err
 	}
 
-	inodePayload, ok := s.storage.Get(myMailbox.InodeUUID)
+	inodePayload, ok, err := s.storage.Get(myMailbox.InodeUUID)
+	if err != nil {
+		return fmt.Errorf("failed to load inode: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("inode not found for file '%s' (cannot append)", filename)
 	}
@@ -364,7 +379,9 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 		if err != nil {
 			return err
 		}
-		s.storage.Set(blockUUID, blockPayload)
+		if err := s.storage.Set(blockUUID, blockPayload); err != nil {
+			return fmt.Errorf("failed to store appended data block: %w", err)
+		}
 		inode.BlockUUIDs = append(inode.BlockUUIDs, blockUUID)
 	}
 	inode.Size += len(content)
@@ -377,7 +394,9 @@ func (s *FileService) AppendToFile(userdata *User, filename string, content []by
 	if err != nil {
 		return fmt.Errorf("failed to encrypt inode: %w", err)
 	}
-	s.storage.Set(myMailbox.InodeUUID, newInodePayload)
+	if err := s.storage.Set(myMailbox.InodeUUID, newInodePayload); err != nil {
+		return fmt.Errorf("failed to store updated inode: %w", err)
+	}
 
 	return nil
 }
@@ -409,12 +428,15 @@ func NewInvitationService(storage StorageService, keyStore KeyStoreService) *Inv
 
 // CreateInvitation creates a sharing invitation
 func (s *InvitationService) CreateInvitation(userdata *User, filename string, recipientUsername string) (uuid.UUID, error) {
-	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	accessUUID, err := accessID(userdata.Username, filename)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to generate access UUID: %w", err)
 	}
 
-	accessPayload, ok := s.storage.Get(accessUUID)
+	accessPayload, ok, err := s.storage.Get(accessUUID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to load access metadata: %w", err)
+	}
 	if !ok {
 		return uuid.Nil, fmt.Errorf("file '%s' not found for user '%s'", filename, userdata.Username)
 	}
@@ -429,7 +451,10 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 		return uuid.Nil, fmt.Errorf("failed to unmarshal access: %w", err)
 	}
 
-	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
+	mailboxPayload, ok, err := s.storage.Get(access.MymailboxUUID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to load mailbox: %w", err)
+	}
 	if !ok {
 		return uuid.Nil, fmt.Errorf("mailbox not found for file '%s'", filename)
 	}
@@ -445,7 +470,10 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 	}
 
 	recipientMailboxUUID := uuid.New()
-	recipientMailboxKey := userlib.RandomBytes(16)
+	recipientMailboxKey, err := randomBytes(masterKeySize)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to generate recipient mailbox key: %w", err)
+	}
 	recipientMailbox := MailboxNode{
 		FileKey:   myMailbox.FileKey,
 		InodeUUID: myMailbox.InodeUUID,
@@ -459,9 +487,14 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to encrypt recipient mailbox: %w", err)
 	}
-	s.storage.Set(recipientMailboxUUID, recipientMailboxPayload)
+	if err := s.storage.Set(recipientMailboxUUID, recipientMailboxPayload); err != nil {
+		return uuid.Nil, fmt.Errorf("failed to store recipient mailbox: %w", err)
+	}
 
-	recipientPubkey, ok := s.keyStore.Get(recipientUsername + "_enc_pub")
+	recipientPubkey, ok, err := s.keyStore.Get(recipientUsername + "_enc_pub")
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to load recipient public key: %w", err)
+	}
 	if !ok {
 		return uuid.Nil, fmt.Errorf("recipient user '%s' does not exist", recipientUsername)
 	}
@@ -475,19 +508,21 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 		return uuid.Nil, fmt.Errorf("failed to marshal invitation: %w", err)
 	}
 
-	ciphertext, err := userlib.PKEEnc(recipientPubkey.(userlib.PKEEncKey), invBytes)
+	ciphertext, err := encryptFor(recipientPubkey, invBytes)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to encrypt invitation: %w", err)
 	}
 
-	signature, err := userlib.DSSign(userdata.DSSignKey, ciphertext)
+	signature, err := sign(userdata.SigningPrivateKey, ciphertext)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to sign invitation: %w", err)
 	}
 
 	invPayload := append(ciphertext, signature...)
 	invRandomPtr := uuid.New()
-	s.storage.Set(invRandomPtr, invPayload)
+	if err := s.storage.Set(invRandomPtr, invPayload); err != nil {
+		return uuid.Nil, fmt.Errorf("failed to store invitation: %w", err)
+	}
 
 	access.Children[recipientUsername] = ChildrenInfo{
 		MailboxUUID: recipientMailboxUUID,
@@ -501,34 +536,42 @@ func (s *InvitationService) CreateInvitation(userdata *User, filename string, re
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to encrypt access: %w", err)
 	}
-	s.storage.Set(accessUUID, newAccessPayload)
+	if err := s.storage.Set(accessUUID, newAccessPayload); err != nil {
+		return uuid.Nil, fmt.Errorf("failed to update access metadata: %w", err)
+	}
 
 	return invRandomPtr, nil
 }
 
 // AcceptInvitation accepts a sharing invitation
 func (s *InvitationService) AcceptInvitation(userdata *User, senderUsername string, invitationPtr uuid.UUID, filename string) error {
-	invitationPayload, ok := s.storage.Get(invitationPtr)
+	invitationPayload, ok, err := s.storage.Get(invitationPtr)
+	if err != nil {
+		return fmt.Errorf("failed to load invitation: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("invitation %s not found", invitationPtr.String())
 	}
 
-	if len(invitationPayload) < 256 {
-		return errors.New("invitation payload too short (expected at least 256 bytes for signature)")
+	if len(invitationPayload) < ed25519.SignatureSize {
+		return errors.New("invitation payload too short")
 	}
-	sigOffset := len(invitationPayload) - 256
+	sigOffset := len(invitationPayload) - ed25519.SignatureSize
 	ciphertext := invitationPayload[:sigOffset]
 	signature := invitationPayload[sigOffset:]
 
-	senderVerifyKey, ok := s.keyStore.Get(senderUsername + "_sig_pub")
+	senderVerifyKey, ok, err := s.keyStore.Get(senderUsername + "_sig_pub")
+	if err != nil {
+		return fmt.Errorf("failed to load sender public key: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("sender '%s' public key not found in keystore", senderUsername)
 	}
-	if err := userlib.DSVerify(senderVerifyKey.(userlib.DSVerifyKey), ciphertext, signature); err != nil {
+	if err := verify(senderVerifyKey, ciphertext, signature); err != nil {
 		return fmt.Errorf("invitation signature verification failed for sender '%s'", senderUsername)
 	}
 
-	plaintext, err := userlib.PKEDec(userdata.PKEPrivateKey, ciphertext)
+	plaintext, err := decryptFor(userdata.EncryptionPrivateKey, ciphertext)
 	if err != nil {
 		return fmt.Errorf("failed to decrypt invitation: %w", err)
 	}
@@ -552,11 +595,13 @@ func (s *InvitationService) AcceptInvitation(userdata *User, senderUsername stri
 	if err != nil {
 		return fmt.Errorf("failed to encrypt access: %w", err)
 	}
-	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	accessUUID, err := accessID(userdata.Username, filename)
 	if err != nil {
 		return fmt.Errorf("failed to generate access UUID: %w", err)
 	}
-	s.storage.Set(accessUUID, currAccessBytes)
+	if err := s.storage.Set(accessUUID, currAccessBytes); err != nil {
+		return fmt.Errorf("failed to store access metadata: %w", err)
+	}
 
 	userdata.Files[filename] = accessUUID
 	return saveUser(s.storage, userdata)
@@ -564,11 +609,14 @@ func (s *InvitationService) AcceptInvitation(userdata *User, senderUsername stri
 
 // RevokeAccess revokes a user's access
 func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipientUsername string) error {
-	accessUUID, err := uuid.FromBytes(userlib.Hash([]byte(userdata.Username + filename))[:16])
+	accessUUID, err := accessID(userdata.Username, filename)
 	if err != nil {
 		return fmt.Errorf("failed to generate access UUID: %w", err)
 	}
-	accessPayload, ok := s.storage.Get(accessUUID)
+	accessPayload, ok, err := s.storage.Get(accessUUID)
+	if err != nil {
+		return fmt.Errorf("failed to load access metadata: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("file '%s' not found for user '%s'", filename, userdata.Username)
 	}
@@ -583,7 +631,10 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 		return fmt.Errorf("failed to unmarshal access: %w", err)
 	}
 
-	mailboxPayload, ok := s.storage.Get(access.MymailboxUUID)
+	mailboxPayload, ok, err := s.storage.Get(access.MymailboxUUID)
+	if err != nil {
+		return fmt.Errorf("failed to load mailbox: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("mailbox not found for file '%s'", filename)
 	}
@@ -598,10 +649,16 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 		return fmt.Errorf("failed to unmarshal mailbox: %w", err)
 	}
 
-	newFileKey := userlib.RandomBytes(16)
+	newFileKey, err := randomBytes(masterKeySize)
+	if err != nil {
+		return fmt.Errorf("failed to generate replacement file key: %w", err)
+	}
 	newFEncKey, newFMacKey := getFileKeys(newFileKey)
 
-	inodePayload, ok := s.storage.Get(myMailbox.InodeUUID)
+	inodePayload, ok, err := s.storage.Get(myMailbox.InodeUUID)
+	if err != nil {
+		return fmt.Errorf("failed to load inode: %w", err)
+	}
 	if !ok {
 		return fmt.Errorf("inode not found for file '%s'", filename)
 	}
@@ -617,7 +674,10 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 	}
 
 	for _, blockUUID := range inode.BlockUUIDs {
-		blockPayload, ok := s.storage.Get(blockUUID)
+		blockPayload, ok, err := s.storage.Get(blockUUID)
+		if err != nil {
+			return fmt.Errorf("failed to load data block: %w", err)
+		}
 		if !ok {
 			return fmt.Errorf("data block not found for file '%s'", filename)
 		}
@@ -629,7 +689,9 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 		if err != nil {
 			return fmt.Errorf("failed to encrypt block: %w", err)
 		}
-		s.storage.Set(blockUUID, newBlockPayload)
+		if err := s.storage.Set(blockUUID, newBlockPayload); err != nil {
+			return fmt.Errorf("failed to store re-encrypted data block: %w", err)
+		}
 	}
 
 	newInodeBytes, err := json.Marshal(inode)
@@ -640,9 +702,14 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 	if err != nil {
 		return fmt.Errorf("failed to encrypt inode: %w", err)
 	}
-	s.storage.Set(myMailbox.InodeUUID, newInodePayload)
+	if err := s.storage.Set(myMailbox.InodeUUID, newInodePayload); err != nil {
+		return fmt.Errorf("failed to store re-encrypted inode: %w", err)
+	}
 
-	newMailboxKey := userlib.RandomBytes(16)
+	newMailboxKey, err := randomBytes(masterKeySize)
+	if err != nil {
+		return fmt.Errorf("failed to generate replacement mailbox key: %w", err)
+	}
 	newMailboxUUID := uuid.New()
 	newMailbox := MailboxNode{
 		FileKey:   newFileKey,
@@ -657,25 +724,30 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 	if err != nil {
 		return fmt.Errorf("failed to encrypt mailbox: %w", err)
 	}
-	s.storage.Set(newMailboxUUID, newMailboxPayload)
+	if err := s.storage.Set(newMailboxUUID, newMailboxPayload); err != nil {
+		return fmt.Errorf("failed to store replacement mailbox: %w", err)
+	}
 
 	for childUsername, childInfo := range access.Children {
 		if childUsername == recipientUsername {
 			continue
 		}
-		childMailboxPayload, ok := s.storage.Get(childInfo.MailboxUUID)
+		childMailboxPayload, ok, err := s.storage.Get(childInfo.MailboxUUID)
+		if err != nil {
+			return fmt.Errorf("failed to load shared mailbox for '%s': %w", childUsername, err)
+		}
 		if !ok {
-			continue
+			return fmt.Errorf("shared mailbox for '%s' not found", childUsername)
 		}
 		cmEncKey, cmMacKey := getMailKeys(childInfo.MailboxKey)
 		childMailboxBytes, err := decryptAndVerify(childMailboxPayload, cmEncKey, cmMacKey)
 		if err != nil {
-			continue
+			return fmt.Errorf("failed to decrypt shared mailbox for '%s': %w", childUsername, err)
 		}
 
 		var childMailbox MailboxNode
 		if err := json.Unmarshal(childMailboxBytes, &childMailbox); err != nil {
-			continue
+			return fmt.Errorf("failed to unmarshal shared mailbox for '%s': %w", childUsername, err)
 		}
 		childMailbox.FileKey = newFileKey
 		updatedChildMailboxBytes, err := json.Marshal(childMailbox)
@@ -686,7 +758,9 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 		if err != nil {
 			return fmt.Errorf("failed to encrypt child mailbox: %w", err)
 		}
-		s.storage.Set(childInfo.MailboxUUID, updatedChildMailboxPayload)
+		if err := s.storage.Set(childInfo.MailboxUUID, updatedChildMailboxPayload); err != nil {
+			return fmt.Errorf("failed to update shared mailbox for '%s': %w", childUsername, err)
+		}
 	}
 
 	delete(access.Children, recipientUsername)
@@ -701,7 +775,9 @@ func (s *InvitationService) RevokeAccess(userdata *User, filename string, recipi
 	if err != nil {
 		return fmt.Errorf("failed to encrypt access: %w", err)
 	}
-	s.storage.Set(accessUUID, newAccessPayload)
+	if err := s.storage.Set(accessUUID, newAccessPayload); err != nil {
+		return fmt.Errorf("failed to update access metadata: %w", err)
+	}
 
 	userdata.Files[filename] = accessUUID
 	return saveUser(s.storage, userdata)

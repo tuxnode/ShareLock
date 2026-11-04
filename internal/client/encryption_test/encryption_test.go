@@ -1,8 +1,5 @@
 package encryption_test
 
-// You MUST NOT change these default imports.  ANY additional imports may
-// break the autograder and everyone will be sad.
-
 import (
 	// Some imports use an underscore to prevent the compiler from complaining
 	// about unused imports.
@@ -21,13 +18,14 @@ import (
 	. "github.com/onsi/gomega"
 
 	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 )
 
 func TestSetupAndExecution(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Client Tests")
 }
+
+func debugMsg(string, ...interface{}) {}
 
 // ================================================
 // Global Variables (feel free to add more!)
@@ -50,17 +48,17 @@ type TestContext struct {
 	fileService       *client.FileService
 	invitationService *client.InvitationService
 
-	alice       *client.User
-	bob         *client.User
-	charles     *client.User
-	alicePhone  *client.User
-	aliceLaptop *client.User
+	alice        *client.User
+	bob          *client.User
+	charles      *client.User
+	alicePhone   *client.User
+	aliceLaptop  *client.User
 	aliceDesktop *client.User
 }
 
 func newTestContext() *TestContext {
-	storage := client.NewUserlibStorage()
-	keyStore := client.NewUserlibKeyStore()
+	storage := client.NewMemoryStorage()
+	keyStore := client.NewMemoryKeyStore()
 	return &TestContext{
 		userService:       client.NewUserService(storage, keyStore),
 		fileService:       client.NewFileService(storage, keyStore),
@@ -78,105 +76,103 @@ var _ = Describe("Client Tests", func() {
 	charlesFile := "charlesFile.txt"
 
 	BeforeEach(func() {
-		userlib.DatastoreClear()
-		userlib.KeystoreClear()
 		ctx = newTestContext()
 	})
 
 	Describe("Basic Tests", func() {
 
 		Specify("Basic Test: Testing InitUser/GetUser on a single user.", func() {
-			userlib.DebugMsg("Initializing user Alice.")
+			debugMsg("Initializing user Alice.")
 			ctx.alice, err = ctx.userService.InitUser("alice", defaultPassword)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Getting user Alice.")
+			debugMsg("Getting user Alice.")
 			ctx.aliceLaptop, err = ctx.userService.GetUser("alice", defaultPassword)
 			Expect(err).To(BeNil())
 		})
 
 		Specify("Basic Test: Testing Single User Store/Load/Append.", func() {
-			userlib.DebugMsg("Initializing user Alice.")
+			debugMsg("Initializing user Alice.")
 			ctx.alice, err = ctx.userService.InitUser("alice", defaultPassword)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Storing file data: %s", contentOne)
+			debugMsg("Storing file data: %s", contentOne)
 			err = ctx.fileService.StoreFile(ctx.alice, aliceFile, []byte(contentOne))
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Appending file data: %s", contentTwo)
+			debugMsg("Appending file data: %s", contentTwo)
 			err = ctx.fileService.AppendToFile(ctx.alice, aliceFile, []byte(contentTwo))
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Appending file data: %s", contentThree)
+			debugMsg("Appending file data: %s", contentThree)
 			err = ctx.fileService.AppendToFile(ctx.alice, aliceFile, []byte(contentThree))
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Loading file...")
+			debugMsg("Loading file...")
 			data, err := ctx.fileService.LoadFile(ctx.alice, aliceFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne + contentTwo + contentThree)))
 		})
 
 		Specify("Basic Test: Testing Create/Accept Invite Functionality with multiple users and multiple instances.", func() {
-			userlib.DebugMsg("Initializing users Alice (aliceDesktop) and Bob.")
+			debugMsg("Initializing users Alice (aliceDesktop) and Bob.")
 			ctx.aliceDesktop, err = ctx.userService.InitUser("alice", defaultPassword)
 			Expect(err).To(BeNil())
 
 			ctx.bob, err = ctx.userService.InitUser("bob", defaultPassword)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Getting second instance of Alice - aliceLaptop")
+			debugMsg("Getting second instance of Alice - aliceLaptop")
 			ctx.aliceLaptop, err = ctx.userService.GetUser("alice", defaultPassword)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("aliceDesktop storing file %s with content: %s", aliceFile, contentOne)
+			debugMsg("aliceDesktop storing file %s with content: %s", aliceFile, contentOne)
 			err = ctx.fileService.StoreFile(ctx.aliceDesktop, aliceFile, []byte(contentOne))
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("aliceLaptop creating invite for Bob.")
+			debugMsg("aliceLaptop creating invite for Bob.")
 			invite, err := ctx.invitationService.CreateInvitation(ctx.aliceLaptop, aliceFile, "bob")
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Bob accepting invite from Alice under filename %s.", bobFile)
+			debugMsg("Bob accepting invite from Alice under filename %s.", bobFile)
 			err = ctx.invitationService.AcceptInvitation(ctx.bob, "alice", invite, bobFile)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Bob appending to file %s, content: %s", bobFile, contentTwo)
+			debugMsg("Bob appending to file %s, content: %s", bobFile, contentTwo)
 			err = ctx.fileService.AppendToFile(ctx.bob, bobFile, []byte(contentTwo))
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("aliceDesktop appending to file %s, content: %s", aliceFile, contentThree)
+			debugMsg("aliceDesktop appending to file %s, content: %s", aliceFile, contentThree)
 			err = ctx.fileService.AppendToFile(ctx.aliceDesktop, aliceFile, []byte(contentThree))
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Checking that aliceDesktop sees expected file data.")
+			debugMsg("Checking that aliceDesktop sees expected file data.")
 			data, err := ctx.fileService.LoadFile(ctx.aliceDesktop, aliceFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne + contentTwo + contentThree)))
 
-			userlib.DebugMsg("Checking that aliceLaptop sees expected file data.")
+			debugMsg("Checking that aliceLaptop sees expected file data.")
 			data, err = ctx.fileService.LoadFile(ctx.aliceLaptop, aliceFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne + contentTwo + contentThree)))
 
-			userlib.DebugMsg("Checking that Bob sees expected file data.")
+			debugMsg("Checking that Bob sees expected file data.")
 			data, err = ctx.fileService.LoadFile(ctx.bob, bobFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne + contentTwo + contentThree)))
 
-			userlib.DebugMsg("Getting third instance of Alice - alicePhone.")
+			debugMsg("Getting third instance of Alice - alicePhone.")
 			ctx.alicePhone, err = ctx.userService.GetUser("alice", defaultPassword)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Checking that alicePhone sees Alice's changes.")
+			debugMsg("Checking that alicePhone sees Alice's changes.")
 			data, err = ctx.fileService.LoadFile(ctx.alicePhone, aliceFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne + contentTwo + contentThree)))
 		})
 
 		Specify("Basic Test: Testing Revoke Functionality", func() {
-			userlib.DebugMsg("Initializing users Alice, Bob, and Charlie.")
+			debugMsg("Initializing users Alice, Bob, and Charlie.")
 			ctx.alice, err = ctx.userService.InitUser("alice", defaultPassword)
 			Expect(err).To(BeNil())
 
@@ -186,10 +182,10 @@ var _ = Describe("Client Tests", func() {
 			ctx.charles, err = ctx.userService.InitUser("charles", defaultPassword)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Alice storing file %s with content: %s", aliceFile, contentOne)
+			debugMsg("Alice storing file %s with content: %s", aliceFile, contentOne)
 			ctx.fileService.StoreFile(ctx.alice, aliceFile, []byte(contentOne))
 
-			userlib.DebugMsg("Alice creating invite for Bob for file %s, and Bob accepting invite under name %s.", aliceFile, bobFile)
+			debugMsg("Alice creating invite for Bob for file %s, and Bob accepting invite under name %s.", aliceFile, bobFile)
 
 			invite, err := ctx.invitationService.CreateInvitation(ctx.alice, aliceFile, "bob")
 			Expect(err).To(BeNil())
@@ -197,50 +193,50 @@ var _ = Describe("Client Tests", func() {
 			err = ctx.invitationService.AcceptInvitation(ctx.bob, "alice", invite, bobFile)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Checking that Alice can still load the file.")
+			debugMsg("Checking that Alice can still load the file.")
 			data, err := ctx.fileService.LoadFile(ctx.alice, aliceFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne)))
 
-			userlib.DebugMsg("Checking that Bob can load the file.")
+			debugMsg("Checking that Bob can load the file.")
 			data, err = ctx.fileService.LoadFile(ctx.bob, bobFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne)))
 
-			userlib.DebugMsg("Bob creating invite for Charles for file %s, and Charlie accepting invite under name %s.", bobFile, charlesFile)
+			debugMsg("Bob creating invite for Charles for file %s, and Charlie accepting invite under name %s.", bobFile, charlesFile)
 			invite, err = ctx.invitationService.CreateInvitation(ctx.bob, bobFile, "charles")
 			Expect(err).To(BeNil())
 
 			err = ctx.invitationService.AcceptInvitation(ctx.charles, "bob", invite, charlesFile)
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Checking that Bob can load the file.")
+			debugMsg("Checking that Bob can load the file.")
 			data, err = ctx.fileService.LoadFile(ctx.bob, bobFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne)))
 
-			userlib.DebugMsg("Checking that Charles can load the file.")
+			debugMsg("Checking that Charles can load the file.")
 			data, err = ctx.fileService.LoadFile(ctx.charles, charlesFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne)))
 
-			userlib.DebugMsg("Alice revoking Bob's access from %s.", aliceFile)
+			debugMsg("Alice revoking Bob's access from %s.", aliceFile)
 			err = ctx.invitationService.RevokeAccess(ctx.alice, aliceFile, "bob")
 			Expect(err).To(BeNil())
 
-			userlib.DebugMsg("Checking that Alice can still load the file.")
+			debugMsg("Checking that Alice can still load the file.")
 			data, err = ctx.fileService.LoadFile(ctx.alice, aliceFile)
 			Expect(err).To(BeNil())
 			Expect(data).To(Equal([]byte(contentOne)))
 
-			userlib.DebugMsg("Checking that Bob/Charles lost access to the file.")
+			debugMsg("Checking that Bob/Charles lost access to the file.")
 			_, err = ctx.fileService.LoadFile(ctx.bob, bobFile)
 			Expect(err).ToNot(BeNil())
 
 			_, err = ctx.fileService.LoadFile(ctx.charles, charlesFile)
 			Expect(err).ToNot(BeNil())
 
-			userlib.DebugMsg("Checking that the revoked users cannot append to the file.")
+			debugMsg("Checking that the revoked users cannot append to the file.")
 			err = ctx.fileService.AppendToFile(ctx.bob, bobFile, []byte(contentTwo))
 			Expect(err).ToNot(BeNil())
 

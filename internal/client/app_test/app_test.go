@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/cs161-staff/project2-starter-code/internal/client/app"
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
+	"github.com/cs161-staff/project2-starter-code/internal/client/remote"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,8 +30,7 @@ var _ = Describe("App Client", func() {
 	var err error
 
 	BeforeEach(func() {
-		userlib.DatastoreClear()
-		userlib.KeystoreClear()
+		remote.Reset()
 	})
 
 	Describe("InitUser / GetUser", func() {

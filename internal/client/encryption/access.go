@@ -1,27 +1,25 @@
 package encryption
 
-import (
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
-)
+import "github.com/google/uuid"
 
 /* Mailbox Node structure */
 type MailboxNode struct {
 	FileKey   []byte
-	InodeUUID userlib.UUID
+	InodeUUID uuid.UUID
 }
 
 type Access struct {
-	MymailboxUUID userlib.UUID
+	MymailboxUUID uuid.UUID
 	MymailboxKey  []byte
 	Children      map[string]ChildrenInfo // Sharing Tree
 }
 
 type ChildrenInfo struct {
-	MailboxUUID userlib.UUID
+	MailboxUUID uuid.UUID
 	MailboxKey  []byte
 }
 
 type Invitation struct {
-	MailboxUUID userlib.UUID
+	MailboxUUID uuid.UUID
 	MailboxKey  []byte
 }

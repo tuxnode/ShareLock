@@ -3,7 +3,6 @@ package encryption
 import (
 	"testing"
 
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -14,11 +13,6 @@ func TestSetupAndExecution(t *testing.T) {
 }
 
 var _ = Describe("Client Unit Tests", func() {
-
-	BeforeEach(func() {
-		userlib.DatastoreClear()
-		userlib.KeystoreClear()
-	})
 
 	Describe("UserService", func() {
 		Specify("InitUser sets the Username field correctly", func() {

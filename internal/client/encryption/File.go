@@ -3,14 +3,14 @@ package encryption
 import (
 	"container/list"
 
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
+	"github.com/google/uuid"
 )
 
 const BlockSize = 512
 
 /* Divide A File Into FileBlocks */
 type FileBlock struct {
-	BlockUUID userlib.UUID
+	BlockUUID uuid.UUID
 	block     []byte
 }
 

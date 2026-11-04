@@ -6,7 +6,7 @@ import (
 
 	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
 	"github.com/cs161-staff/project2-starter-code/internal/client/netstream"
-	"github.com/cs161-staff/project2-starter-code/internal/userlib"
+	"github.com/cs161-staff/project2-starter-code/internal/client/remote"
 	"github.com/google/uuid"
 )
 
@@ -19,8 +19,8 @@ type Client struct {
 
 func (c *Client) ensureServices() {
 	if c.userService == nil {
-		storage := client.NewUserlibStorage()
-		keyStore := client.NewUserlibKeyStore()
+		storage := client.NewRemoteStorage()
+		keyStore := client.NewRemoteKeyStore()
 		c.userService = client.NewUserService(storage, keyStore)
 		c.fileService = client.NewFileService(storage, keyStore)
 		c.invitationService = client.NewInvitationService(storage, keyStore)
@@ -28,11 +28,11 @@ func (c *Client) ensureServices() {
 }
 
 func Connect(address string, tlsEnabled bool) {
-	userlib.Connect(address, tlsEnabled)
+	remote.Connect(address, tlsEnabled)
 }
 
 func Disconnect() {
-	userlib.Disconnect()
+	remote.Disconnect()
 }
 
 func (c *Client) InitUser(username string, password string) error {

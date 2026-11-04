@@ -1,18 +1,17 @@
 package encryption
 
-import (
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
-)
+import "github.com/google/uuid"
 
 type User struct {
-	Username      string
-	PKEPrivateKey userlib.PrivateKeyType
-	DSSignKey     userlib.DSSignKey
-	MasterKey     []byte
-	Files         map[string]userlib.UUID
+	Username             string
+	EncryptionPrivateKey []byte
+	SigningPrivateKey    []byte
+	MasterKey            []byte
+	PasswordSalt         []byte `json:"-"`
+	Files                map[string]uuid.UUID
 }
 
 type Inode struct {
 	Size       int
-	BlockUUIDs []userlib.UUID
+	BlockUUIDs []uuid.UUID
 }

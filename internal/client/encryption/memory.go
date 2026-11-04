@@ -3,115 +3,102 @@ package encryption
 import (
 	"sync"
 
-	userlib "github.com/cs161-staff/project2-starter-code/internal/userlib"
+	"github.com/cs161-staff/project2-starter-code/internal/client/remote"
+	"github.com/google/uuid"
 )
 
-// MemoryStorage is an in-memory implementation of StorageService for testing
+type StorageService interface {
+	Get(key uuid.UUID) ([]byte, bool, error)
+	Set(key uuid.UUID, value []byte) error
+	Delete(key uuid.UUID) error
+}
+
+type KeyStoreService interface {
+	Get(key string) ([]byte, bool, error)
+	Set(key string, value []byte) error
+}
+
 type MemoryStorage struct {
 	mu    sync.RWMutex
-	store map[userlib.UUID][]byte
+	store map[uuid.UUID][]byte
 }
 
 func NewMemoryStorage() *MemoryStorage {
-	return &MemoryStorage{
-		store: make(map[userlib.UUID][]byte),
-	}
+	return &MemoryStorage{store: make(map[uuid.UUID][]byte)}
 }
 
-func (m *MemoryStorage) Get(key userlib.UUID) ([]byte, bool) {
+func (m *MemoryStorage) Get(key uuid.UUID) ([]byte, bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	val, ok := m.store[key]
-	return val, ok
+	value, ok := m.store[key]
+	return append([]byte(nil), value...), ok, nil
 }
 
-func (m *MemoryStorage) Set(key userlib.UUID, value []byte) {
+func (m *MemoryStorage) Set(key uuid.UUID, value []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.store[key] = value
+	m.store[key] = append([]byte(nil), value...)
+	return nil
 }
 
-func (m *MemoryStorage) Delete(key userlib.UUID) {
+func (m *MemoryStorage) Delete(key uuid.UUID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.store, key)
+	return nil
 }
 
-// MemoryKeyStore is an in-memory implementation of KeyStoreService for testing
 type MemoryKeyStore struct {
 	mu    sync.RWMutex
-	store map[string]interface{}
+	store map[string][]byte
 }
 
 func NewMemoryKeyStore() *MemoryKeyStore {
-	return &MemoryKeyStore{
-		store: make(map[string]interface{}),
-	}
+	return &MemoryKeyStore{store: make(map[string][]byte)}
 }
 
-func (m *MemoryKeyStore) Get(key string) (interface{}, bool) {
+func (m *MemoryKeyStore) Get(key string) ([]byte, bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	val, ok := m.store[key]
-	return val, ok
+	value, ok := m.store[key]
+	return append([]byte(nil), value...), ok, nil
 }
 
-func (m *MemoryKeyStore) Set(key string, value interface{}) {
+func (m *MemoryKeyStore) Set(key string, value []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.store[key] = value
+	m.store[key] = append([]byte(nil), value...)
+	return nil
 }
 
-// UserlibStorage adapts userlib.DatastoreGet/Set to StorageService interface
-type UserlibStorage struct{}
+type RemoteStorage struct{}
 
-func NewUserlibStorage() *UserlibStorage {
-	return &UserlibStorage{}
+func NewRemoteStorage() *RemoteStorage {
+	return &RemoteStorage{}
 }
 
-func (u *UserlibStorage) Get(key userlib.UUID) ([]byte, bool) {
-	return userlib.DatastoreGet(key)
+func (r *RemoteStorage) Get(key uuid.UUID) ([]byte, bool, error) {
+	return remote.Get(append([]byte("data:"), key[:]...))
 }
 
-func (u *UserlibStorage) Set(key userlib.UUID, value []byte) {
-	userlib.DatastoreSet(key, value)
+func (r *RemoteStorage) Set(key uuid.UUID, value []byte) error {
+	return remote.Set(append([]byte("data:"), key[:]...), value)
 }
 
-func (u *UserlibStorage) Delete(key userlib.UUID) {
-	userlib.DatastoreDelete(key)
+func (r *RemoteStorage) Delete(key uuid.UUID) error {
+	return remote.Delete(append([]byte("data:"), key[:]...))
 }
 
-// UserlibKeyStore adapts userlib.KeystoreGet/Set to KeyStoreService interface.
-// Each instance maintains a local cache and falls through to the global
-// userlib keystore (which shards by Ginkgo spec line). This prevents
-// cross-test key contamination when multiple tests call InitUser for
-// the same username without clearing the global keystore.
-type UserlibKeyStore struct {
-	mu    sync.RWMutex
-	local map[string]userlib.PublicKeyType
+type RemoteKeyStore struct{}
+
+func NewRemoteKeyStore() *RemoteKeyStore {
+	return &RemoteKeyStore{}
 }
 
-func NewUserlibKeyStore() *UserlibKeyStore {
-	return &UserlibKeyStore{
-		local: make(map[string]userlib.PublicKeyType),
-	}
+func (r *RemoteKeyStore) Get(key string) ([]byte, bool, error) {
+	return remote.Get([]byte("key:" + key))
 }
 
-func (u *UserlibKeyStore) Get(key string) (interface{}, bool) {
-	u.mu.RLock()
-	if v, ok := u.local[key]; ok {
-		u.mu.RUnlock()
-		return v, true
-	}
-	u.mu.RUnlock()
-	return userlib.KeystoreGet(key)
-}
-
-func (u *UserlibKeyStore) Set(key string, value interface{}) {
-	if pk, ok := value.(userlib.PublicKeyType); ok {
-		u.mu.Lock()
-		u.local[key] = pk
-		u.mu.Unlock()
-		userlib.KeystoreSet(key, pk)
-	}
+func (r *RemoteKeyStore) Set(key string, value []byte) error {
+	return remote.Set([]byte("key:"+key), value)
 }
