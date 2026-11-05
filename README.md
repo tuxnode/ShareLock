@@ -186,6 +186,39 @@ See [Testing Guide](./docs/testing.md) for detailed documentation and benchmarks
 
 ---
 
+## Project Structure
+
+```
+.
+├── cmd/
+│   ├── client/main.go           # CLI entry point
+│   └── server/
+│       ├── main.go              # Server entrypoint
+│       └── config.go            # Flags/env/.env configuration
+├── internal/
+│   ├── client/
+│   │   ├── encryption/          # Crypto: User, FileService, InvitationService
+│   │   ├── app/app.go           # Application business logic
+│   │   ├── netstream/           # TLS-encrypted file streaming
+│   │   └── config/              # .hosts file management
+│   ├── server/
+│   │   ├── server.go            # TLS listener, goroutine-per-conn
+│   │   ├── store/store.go       # BadgerDB KV store
+│   │   └── handler/handler.go   # Binary protocol handler
+│   └── userlib/                 # Crypto primitives + network storage
+├── docs/
+│   ├── architecture.md          # Cryptographic design details
+│   ├── api.md                   # User Library & Service API reference
+│   └── testing.md               # Testing guide
+├── Dockerfile
+├── .env.example
+├── Makefile
+├── go.mod
+└── LICENSE
+```
+
+---
+
 ## Documentation
 
 - [Architecture & Cryptographic Design](./docs/architecture.md)

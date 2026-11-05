@@ -186,6 +186,39 @@ make test-userlib      # userlib 测试
 
 ---
 
+## 项目结构
+
+```
+.
+├── cmd/
+│   ├── client/main.go           # CLI 入口
+│   └── server/
+│       ├── main.go              # 服务端入口
+│       └── config.go            # 参数/环境变量/.env 配置
+├── internal/
+│   ├── client/
+│   │   ├── encryption/          # 密码学：User, FileService, InvitationService
+│   │   ├── app/app.go           # 应用业务逻辑
+│   │   ├── netstream/           # TLS 加密文件流式传输
+│   │   └── config/              # .hosts 文件管理
+│   ├── server/
+│   │   ├── server.go            # TLS 监听，每个连接一个 goroutine
+│   │   ├── store/store.go       # BadgerDB KV 存储
+│   │   └── handler/handler.go   # 二进制协议处理
+│   └── userlib/                 # 密码学原语 + 网络存储
+├── docs/
+│   ├── architecture-zh.md       # 密码学设计详情
+│   ├── api-zh.md                # 用户库 & Service API 参考
+│   └── testing-zh.md            # 测试说明
+├── Dockerfile
+├── .env.example
+├── Makefile
+├── go.mod
+└── LICENSE
+```
+
+---
+
 ## 文档
 
 - [架构与密码学设计](./docs/architecture-zh.md)
