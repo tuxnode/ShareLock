@@ -167,6 +167,17 @@ docker run --rm -p 8080:8080 \
 
 Build locally with `docker build -t sharelock-server .`.
 
+Or use Docker Compose (builds locally; data persisted in a named volume):
+
+```bash
+docker compose up -d --build     # http://localhost:8080
+docker compose logs -f
+docker compose down              # add -v to drop the data volume
+```
+
+For TLS with Compose, set `SHARELOCK_TLS=true` (in `.env` or the environment)
+and place `cert.pem` / `key.pem` in `./certs`.
+
 ---
 
 ## Testing

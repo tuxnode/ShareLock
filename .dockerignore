@@ -23,6 +23,7 @@ docs/
 LICENSE
 CHANGELOG.md
 Makefile
+docker-compose.yml
 
 # Editor / agent
 .idea/

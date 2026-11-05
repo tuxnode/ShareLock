@@ -1,0 +1,24 @@
+services:
+  sharelock-server:
+    # `docker compose up --build` builds locally; `docker compose pull` uses GHCR.
+    build:
+      context: .
+    image: ghcr.io/tuxnode/sharelock:latest
+    container_name: sharelock-server
+    restart: unless-stopped
+    ports:
+      - "${SHARELOCK_PORT:-8080}:8080"
+    environment:
+      SHARELOCK_ADDRESS: 0.0.0.0:8080
+      SHARELOCK_DIR: /data
+      # TLS is off by default for local use. Set SHARELOCK_TLS=true (e.g. in
+      # .env) and place cert.pem / key.pem in ./certs to enable it.
+      SHARELOCK_TLS: ${SHARELOCK_TLS:-false}
+      SHARELOCK_CERT: /certs/cert.pem
+      SHARELOCK_KEY: /certs/key.pem
+    volumes:
+      - sharelock-data:/data
+      - ./certs:/certs:ro
+
+volumes:
+  sharelock-data:

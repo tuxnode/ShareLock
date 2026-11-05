@@ -167,6 +167,17 @@ docker run --rm -p 8080:8080 \
 
 本地构建：`docker build -t sharelock-server .`
 
+或使用 Docker Compose（本地构建，数据保存在命名卷中）：
+
+```bash
+docker compose up -d --build     # http://localhost:8080
+docker compose logs -f
+docker compose down              # 加 -v 会删除数据卷
+```
+
+Compose 下启用 TLS：设置 `SHARELOCK_TLS=true`（`.env` 或环境变量），并将
+`cert.pem` / `key.pem` 放入 `./certs`。
+
 ---
 
 ## 测试
