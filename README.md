@@ -202,8 +202,8 @@ See [Testing Guide](./docs/testing.md) for detailed documentation and benchmarks
 ```
 .
 ├── cmd/
-│   ├── client/main.go           # CLI entry point
-│   └── server/
+│   ├── sharelock/main.go        # CLI entry point
+│   └── sharelock-server/
 │       ├── main.go              # Server entrypoint
 │       └── config.go            # Flags/env/.env configuration
 ├── internal/

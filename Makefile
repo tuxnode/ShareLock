@@ -12,10 +12,10 @@ all: build gen-cert
 build: client server
 
 client:
-	go build -o $(BIN) ./cmd/client
+	go build -o $(BIN) ./cmd/sharelock
 
 server:
-	go build -o $(BIN_SRV) ./cmd/server
+	go build -o $(BIN_SRV) ./cmd/sharelock-server
 
 gen-cert:
 	@if [ ! -f $(CERT) ] || [ ! -f $(KEY) ]; then \

@@ -202,8 +202,8 @@ make test-userlib      # userlib 测试
 ```
 .
 ├── cmd/
-│   ├── client/main.go           # CLI 入口
-│   └── server/
+│   ├── sharelock/main.go        # CLI 入口
+│   └── sharelock-server/
 │       ├── main.go              # 服务端入口
 │       └── config.go            # 参数/环境变量/.env 配置
 ├── internal/

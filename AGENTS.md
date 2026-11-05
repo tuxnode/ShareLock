@@ -50,7 +50,7 @@ SHARELOCK_HOST=dev ./sharelock store -f hello.txt             # select host
 
 ## Architecture
 
-- **Entrypoints**: `cmd/client/main.go`, `cmd/server/main.go`
+- **Entrypoints**: `cmd/sharelock/main.go`, `cmd/sharelock-server/main.go`
 - **Client layers**: CLI -> `internal/client/app/app.go` -> `internal/client/encryption/service.go` (UserService, FileService, InvitationService) -> `internal/userlib/` (network/crypto primitives)
 - **Server**: BadgerDB KV store (`internal/server/`). Zero-knowledge — all crypto client-side.
 - **Storage abstraction**: Services depend on `StorageService`/`KeyStoreService` interfaces (`internal/client/encryption/memory.go`). `MemoryStorage`/`MemoryKeyStore` for tests; `UserlibStorage`/`UserlibKeyStore` for production (wraps `userlib.Datastore*`/`Keystore*`).
@@ -67,9 +67,9 @@ SHARELOCK_HOST=dev ./sharelock store -f hello.txt             # select host
 | `internal/client/encryption/access.go` | MailboxNode, Access, Invitation structs |
 | `internal/client/encryption/File.go` | 512-byte block splitting |
 | `internal/client/app/app.go` | Client struct wiring services together |
-| `cmd/client/main.go` | CLI flag parsing, session management |
-| `cmd/server/main.go` | Server entrypoint |
-| `cmd/server/config.go` | Server config: flags > env > `.env` > defaults (godotenv) |
+| `cmd/sharelock/main.go` | CLI flag parsing, session management |
+| `cmd/sharelock-server/main.go` | Server entrypoint |
+| `cmd/sharelock-server/config.go` | Server config: flags > env > `.env` > defaults (godotenv) |
 
 ## Conventions
 
