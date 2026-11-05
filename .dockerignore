@@ -1,0 +1,31 @@
+# VCS / CI
+.git
+.github
+.gitignore
+
+# Local config & secrets
+.env
+*.pem
+
+# Build artifacts
+sharelock
+sharelock-server
+dist/
+data/
+*.test
+*.out
+
+# Docs & assets not needed in image
+docs/
+*.md
+*.pdf
+*.excalidraw
+LICENSE
+CHANGELOG.md
+Makefile
+
+# Editor / agent
+.idea/
+.vscode/
+.history/
+.mimocode/

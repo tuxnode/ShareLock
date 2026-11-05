@@ -143,6 +143,30 @@ cp .env.example .env
 ./sharelock-server
 ```
 
+### Docker
+
+Prebuilt images are published to GHCR on every release tag:
+
+```bash
+# Plain TCP mode (development)
+docker run --rm -p 8080:8080 \
+  -e SHARELOCK_TLS=false \
+  -v sharelock-data:/data \
+  ghcr.io/tuxnode/sharelock:latest
+
+# TLS mode: mount cert.pem/key.pem and point the server at them
+docker run --rm -p 8080:8080 \
+  -e SHARELOCK_TLS=true \
+  -e SHARELOCK_CERT=/certs/cert.pem \
+  -e SHARELOCK_KEY=/certs/key.pem \
+  -v "$PWD/cert.pem:/certs/cert.pem:ro" \
+  -v "$PWD/key.pem:/certs/key.pem:ro" \
+  -v sharelock-data:/data \
+  ghcr.io/tuxnode/sharelock:latest
+```
+
+Build locally with `docker build -t sharelock-server .`.
+
 ---
 
 ## Testing
@@ -159,35 +183,6 @@ make test-userlib      # userlib tests
 ```
 
 See [Testing Guide](./docs/testing.md) for detailed documentation and benchmarks.
-
----
-
-## Project Structure
-
-```
-.
-├── cmd/
-│   ├── client/main.go           # CLI entry point
-│   └── server/main.go           # KV Store server
-├── internal/
-│   ├── client/
-│   │   ├── encryption/          # Crypto: User, FileService, InvitationService
-│   │   ├── app/app.go           # Application business logic
-│   │   ├── netstream/           # TLS-encrypted file streaming
-│   │   └── config/              # .hosts file management
-│   ├── server/
-│   │   ├── server.go            # TLS listener, goroutine-per-conn
-│   │   ├── store/store.go       # BadgerDB KV store
-│   │   └── handler/handler.go   # Binary protocol handler
-│   └── userlib/                 # Crypto primitives + network storage
-├── docs/
-│   ├── architecture.md          # Cryptographic design details
-│   ├── api.md                   # User Library & Service API reference
-│   └── testing.md               # Testing guide
-├── Makefile
-├── go.mod
-└── LICENSE
-```
 
 ---
 

@@ -143,6 +143,30 @@ cp .env.example .env
 ./sharelock-server
 ```
 
+### Docker
+
+每次打 release tag 时，镜像会自动发布到 GHCR：
+
+```bash
+# 明文 TCP 模式（开发环境）
+docker run --rm -p 8080:8080 \
+  -e SHARELOCK_TLS=false \
+  -v sharelock-data:/data \
+  ghcr.io/tuxnode/sharelock:latest
+
+# TLS 模式：挂载 cert.pem/key.pem 并指向它们
+docker run --rm -p 8080:8080 \
+  -e SHARELOCK_TLS=true \
+  -e SHARELOCK_CERT=/certs/cert.pem \
+  -e SHARELOCK_KEY=/certs/key.pem \
+  -v "$PWD/cert.pem:/certs/cert.pem:ro" \
+  -v "$PWD/key.pem:/certs/key.pem:ro" \
+  -v sharelock-data:/data \
+  ghcr.io/tuxnode/sharelock:latest
+```
+
+本地构建：`docker build -t sharelock-server .`
+
 ---
 
 ## 测试
@@ -159,35 +183,6 @@ make test-userlib      # userlib 测试
 ```
 
 详见[测试说明文档](./docs/testing-zh.md)。
-
----
-
-## 项目结构
-
-```
-.
-├── cmd/
-│   ├── client/main.go           # CLI 入口
-│   └── server/main.go           # KV 存储服务端
-├── internal/
-│   ├── client/
-│   │   ├── encryption/          # 密码学：User, FileService, InvitationService
-│   │   ├── app/app.go           # 应用业务逻辑
-│   │   ├── netstream/           # TLS 加密文件流式传输
-│   │   └── config/              # .hosts 文件管理
-│   ├── server/
-│   │   ├── server.go            # TLS 监听，每个连接一个 goroutine
-│   │   ├── store/store.go       # BadgerDB KV 存储
-│   │   └── handler/handler.go   # 二进制协议处理
-│   └── userlib/                 # 密码学原语 + 网络存储
-├── docs/
-│   ├── architecture-zh.md       # 密码学设计详情
-│   ├── api-zh.md                # 用户库 & Service API 参考
-│   └── testing-zh.md            # 测试说明
-├── Makefile
-├── go.mod
-└── LICENSE
-```
 
 ---
 
