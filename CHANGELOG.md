@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog][Keep a Changelog] and this project adh
 ## [Unreleased]
 
 ### Added
+- Server configuration via `.env` file and `SHARELOCK_*` environment variables (`-env` flag to override path)
+- `.env.example` documented configuration template
+- Docker image for the server (multi-stage, non-root)
+- CI job to build and push the Docker image to GHCR on release tags
 - File listing: `list` command and `ListFiles` method
 - Session persistence: credentials cached to disk after `init`/`login`
 - Logout command to clear cached session
