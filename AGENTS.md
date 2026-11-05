@@ -68,7 +68,8 @@ SHARELOCK_HOST=dev ./sharelock store -f hello.txt             # select host
 | `internal/client/encryption/File.go` | 512-byte block splitting |
 | `internal/client/app/app.go` | Client struct wiring services together |
 | `cmd/client/main.go` | CLI flag parsing, session management |
-| `cmd/server/main.go` | Server flags: -address, -dir, -cert, -key, -tls |
+| `cmd/server/main.go` | Server entrypoint |
+| `cmd/server/config.go` | Server config: flags > env > `.env` > defaults (godotenv) |
 
 ## Conventions
 

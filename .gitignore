@@ -199,5 +199,9 @@ sharelock-server
 cert.pem
 key.pem
 
+# Local environment config (template is tracked)
+.env
+!.env.example
+
 # Agent
 .mimocode/

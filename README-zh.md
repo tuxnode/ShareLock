@@ -118,6 +118,16 @@ KV 存储服务端（`sharelock-server`）使用 BadgerDB 提供加密的键值�
 | `-cert` | — | TLS 证书文件（`-tls=true` 时必填） |
 | `-key` | — | TLS 私钥文件（`-tls=true` 时必填） |
 | `-tls` | `true` | 启用 TLS 加密 |
+| `-env` | `.env` | 可选的 `.env` 配置文件路径 |
+
+### 通过 `.env` 配置
+
+复制 `.env.example` 为 `.env` 并按需修改。优先级（高者优先）：
+
+1. 命令行参数
+2. 进程环境变量（`SHARELOCK_ADDRESS`、`SHARELOCK_DIR`、`SHARELOCK_CERT`、`SHARELOCK_KEY`、`SHARELOCK_TLS`、`SHARELOCK_ENV_FILE`）
+3. `.env` 文件
+4. 内置默认值
 
 ### 示例
 
@@ -127,6 +137,10 @@ KV 存储服务端（`sharelock-server`）使用 BadgerDB 提供加密的键值�
 
 # 明文 TCP 模式（开发环境）
 ./sharelock-server -tls=false -address :8080 -dir ./data
+
+# 使用 .env 配置
+cp .env.example .env
+./sharelock-server
 ```
 
 ---

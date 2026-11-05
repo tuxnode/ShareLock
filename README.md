@@ -118,6 +118,16 @@ The KV Store server (`sharelock-server`) provides encrypted key-value storage us
 | `-cert` | — | TLS certificate file (required when `-tls=true`) |
 | `-key` | — | TLS private key file (required when `-tls=true`) |
 | `-tls` | `true` | Enable TLS encryption |
+| `-env` | `.env` | Path to optional `.env` config file |
+
+### Configuration via `.env`
+
+Copy `.env.example` to `.env` and adjust values. Precedence (highest wins):
+
+1. Command-line flags
+2. Process environment variables (`SHARELOCK_ADDRESS`, `SHARELOCK_DIR`, `SHARELOCK_CERT`, `SHARELOCK_KEY`, `SHARELOCK_TLS`, `SHARELOCK_ENV_FILE`)
+3. `.env` file
+4. Built-in defaults
 
 ### Examples
 
@@ -127,6 +137,10 @@ The KV Store server (`sharelock-server`) provides encrypted key-value storage us
 
 # Plain TCP mode (development)
 ./sharelock-server -tls=false -address :8080 -dir ./data
+
+# Config from .env
+cp .env.example .env
+./sharelock-server
 ```
 
 ---
