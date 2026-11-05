@@ -36,12 +36,22 @@ The system is engineered against an **Active Malicious Adversary** who has full 
 - Go 1.20+
 - Supported OS: Linux, macOS, Windows
 
-### Quick Start
+### Install with `go install`
+
+```bash
+go install github.com/tuxnode/ShareLock/cmd/sharelock@latest
+go install github.com/tuxnode/ShareLock/cmd/sharelock-server@latest
+```
+
+Installed binaries go to `$(go env GOPATH)/bin`; make sure it is on your `PATH`.
+
+### Build from source
 
 ```bash
 git clone git@github.com:tuxnode/ShareLock.git
 cd ShareLock
 make all          # build binaries + generate dev TLS certificate
+# or: make install   # install both commands into GOPATH/bin
 ```
 
 ### Quick Demo

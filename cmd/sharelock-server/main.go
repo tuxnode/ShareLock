@@ -6,7 +6,11 @@ import (
 	"github.com/tuxnode/ShareLock/internal/server"
 )
 
+var version = "dev"
+
 func main() {
+	log.Printf("sharelock-server %s", version)
+
 	cfg := loadConfig()
 
 	if cfg.tlsEnabled && (cfg.cert == "" || cfg.key == "") {

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog][Keep a Changelog] and this project adh
 ## [Unreleased]
 
 ### Added
+- Installable via `go install github.com/tuxnode/ShareLock/cmd/sharelock@latest`
+  (and `.../cmd/sharelock-server@latest`); `make install` target
 - Server configuration via `.env` file and `SHARELOCK_*` environment variables (`-env` flag to override path)
 - `.env.example` documented configuration template
 - Docker image for the server (multi-stage, non-root)
@@ -23,6 +25,7 @@ The format is based on [Keep a Changelog][Keep a Changelog] and this project adh
 - Improved error messages with username/filename context across all services
 
 ### Changed
+- Module path renamed to `github.com/tuxnode/ShareLock`; command packages moved to `cmd/sharelock` and `cmd/sharelock-server` so `go install` produces the expected binary names
 - Migration from CLAUDE.md to AGENTS.md with more compact, repo-specific guidance
 
 ### Removed

@@ -2,8 +2,10 @@ BIN     := sharelock
 BIN_SRV := sharelock-server
 CERT    := cert.pem
 KEY     := key.pem
+VERSION ?= dev
+LDFLAGS := -X main.version=$(VERSION)
 
-.PHONY: all build client server clean test vet bench gen-cert help \
+.PHONY: all build install client server clean test vet bench gen-cert help \
         test-app test-encryption test-unit test-handler test-store test-integration \
         bench-store bench-handler bench-integration
 
@@ -12,10 +14,13 @@ all: build gen-cert
 build: client server
 
 client:
-	go build -o $(BIN) ./cmd/sharelock
+	go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/sharelock
 
 server:
-	go build -o $(BIN_SRV) ./cmd/sharelock-server
+	go build -ldflags "$(LDFLAGS)" -o $(BIN_SRV) ./cmd/sharelock-server
+
+install:
+	go install -ldflags "$(LDFLAGS)" ./cmd/sharelock ./cmd/sharelock-server
 
 gen-cert:
 	@if [ ! -f $(CERT) ] || [ ! -f $(KEY) ]; then \
@@ -81,6 +86,7 @@ help:
 	@echo "Build:"
 	@echo "  make all        build binaries + generate dev certificate"
 	@echo "  make build      build client and server binaries"
+	@echo "  make install    go install both commands into GOBIN/GOPATH/bin"
 	@echo "  make client     build client binary only"
 	@echo "  make server     build server binary only"
 	@echo "  make gen-cert   generate self-signed TLS certificate"

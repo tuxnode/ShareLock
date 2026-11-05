@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 
@@ -13,7 +14,22 @@ import (
 	"github.com/google/uuid"
 )
 
+// version is set via -ldflags "-X main.version=..." by releases. When empty
+// (e.g. a plain `go install ...@vX.Y.Z`), fall back to the module version
+// recorded in the build info.
 var version = "dev"
+
+func buildVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		if v := bi.Main.Version; v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return version
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -29,7 +45,7 @@ func main() {
 
 	// Handle version
 	if os.Args[1] == "version" || os.Args[1] == "--version" {
-		fmt.Printf("sharelock %s\n", version)
+		fmt.Printf("sharelock %s\n", buildVersion())
 		os.Exit(0)
 	}
 

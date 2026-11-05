@@ -36,12 +36,22 @@
 - Go 1.20+
 - 支持的操作系统：Linux, macOS, Windows
 
-### 快速开始
+### 使用 `go install` 安装
+
+```bash
+go install github.com/tuxnode/ShareLock/cmd/sharelock@latest
+go install github.com/tuxnode/ShareLock/cmd/sharelock-server@latest
+```
+
+安装后的二进制位于 `$(go env GOPATH)/bin`，请确保该目录在 `PATH` 中。
+
+### 从源码构建
 
 ```bash
 git clone git@github.com:tuxnode/ShareLock.git
 cd ShareLock
 make all          # 构建二进制 + 生成开发 TLS 证书
+# 或：make install   # 将两个命令安装到 GOPATH/bin
 ```
 
 ### 快速演示

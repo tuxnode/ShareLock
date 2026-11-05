@@ -7,6 +7,7 @@ End-to-end encrypted file storage and sharing (Go 1.20, BadgerDB). Module: `gith
 ```bash
 make all           # build binaries + generate dev TLS cert
 make build         # build binaries only
+make install       # go install both commands into GOBIN/GOPATH/bin
 make vet           # go vet ./...
 make clean         # rm binaries, cert.pem, key.pem
 ```
