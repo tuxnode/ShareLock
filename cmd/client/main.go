@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cs161-staff/project2-starter-code/internal/client/app"
-	"github.com/cs161-staff/project2-starter-code/internal/client/config"
+	"github.com/tuxnode/ShareLock/internal/client/app"
+	"github.com/tuxnode/ShareLock/internal/client/config"
 	"github.com/google/uuid"
 )
 

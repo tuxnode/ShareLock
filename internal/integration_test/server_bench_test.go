@@ -19,8 +19,8 @@ import (
 
 	crand "crypto/rand"
 
-	"github.com/cs161-staff/project2-starter-code/internal/server/handler"
-	"github.com/cs161-staff/project2-starter-code/internal/server/store"
+	"github.com/tuxnode/ShareLock/internal/server/handler"
+	"github.com/tuxnode/ShareLock/internal/server/store"
 )
 
 func benchCert(b *testing.B) (certFile, keyFile string) {

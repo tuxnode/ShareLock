@@ -17,7 +17,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
+	client "github.com/tuxnode/ShareLock/internal/client/encryption"
 )
 
 func TestSetupAndExecution(t *testing.T) {

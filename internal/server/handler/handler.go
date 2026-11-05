@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/dgraph-io/badger/v3"
-	"github.com/cs161-staff/project2-starter-code/internal/server/store"
+	"github.com/tuxnode/ShareLock/internal/server/store"
 )
 
 const (

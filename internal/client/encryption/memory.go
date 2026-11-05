@@ -3,7 +3,7 @@ package encryption
 import (
 	"sync"
 
-	"github.com/cs161-staff/project2-starter-code/internal/client/remote"
+	"github.com/tuxnode/ShareLock/internal/client/remote"
 	"github.com/google/uuid"
 )
 

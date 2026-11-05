@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cs161-staff/project2-starter-code/internal/server/store"
+	"github.com/tuxnode/ShareLock/internal/server/store"
 )
 
 func TestSetGet(t *testing.T) {

@@ -3,8 +3,8 @@ package app_test
 import (
 	"testing"
 
-	"github.com/cs161-staff/project2-starter-code/internal/client/app"
-	"github.com/cs161-staff/project2-starter-code/internal/client/remote"
+	"github.com/tuxnode/ShareLock/internal/client/app"
+	"github.com/tuxnode/ShareLock/internal/client/remote"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -1,6 +1,6 @@
 # ShareLock
 
-End-to-end encrypted file storage and sharing (Go 1.20, BadgerDB). Module: `github.com/cs161-staff/project2-starter-code`.
+End-to-end encrypted file storage and sharing (Go 1.20, BadgerDB). Module: `github.com/tuxnode/ShareLock`.
 
 ## Commands
 

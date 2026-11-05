@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/cs161-staff/project2-starter-code/internal/server"
+	"github.com/tuxnode/ShareLock/internal/server"
 )
 
 func main() {

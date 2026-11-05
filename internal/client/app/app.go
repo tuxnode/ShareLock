@@ -4,9 +4,9 @@ import (
 	"crypto/tls"
 	"net"
 
-	client "github.com/cs161-staff/project2-starter-code/internal/client/encryption"
-	"github.com/cs161-staff/project2-starter-code/internal/client/netstream"
-	"github.com/cs161-staff/project2-starter-code/internal/client/remote"
+	client "github.com/tuxnode/ShareLock/internal/client/encryption"
+	"github.com/tuxnode/ShareLock/internal/client/netstream"
+	"github.com/tuxnode/ShareLock/internal/client/remote"
 	"github.com/google/uuid"
 )
 
